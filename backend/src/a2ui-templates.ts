@@ -41,10 +41,12 @@ export function buildProgressMessages(phase: Phase, statusText: string) {
 }
 
 export function buildCatalogueMessages(
-  recommendations: Array<{ listing: Listing; score: number; reasoning: string }>
+  recommendations: Array<{ listing: Listing; score: number; reasoning: string }>,
+  tradeIn?: { estimatedValue: number } | null
 ) {
   const cards = recommendations.map((item) => {
     const car = item.listing;
+    const netPrice = tradeIn && car.price ? Math.max(0, car.price - tradeIn.estimatedValue) : null;
     return {
       id: `car-card-${car.id}`,
       component: 'CarCard',
@@ -58,6 +60,8 @@ export function buildCatalogueMessages(
         category: car.category,
         listingType: car.listingType,
         price: car.price,
+        netPrice: netPrice,
+        tradeInOffset: tradeIn ? tradeIn.estimatedValue : null,
         dailyRate: car.dailyRate,
         mileage: car.mileage,
         fuelType: car.fuelType,

@@ -37,6 +37,14 @@ export interface Recommendation {
   reasoning: string;
 }
 
+export interface TradeInEstimate {
+  year: number;
+  brand: string;
+  model: string;
+  estimatedValue: number;
+  condition?: 'excellent' | 'good' | 'fair';
+}
+
 export interface SessionState {
   sessionId: string;
   phase: Phase;
@@ -44,6 +52,8 @@ export interface SessionState {
   searchResults: Listing[];
   recommendations: Recommendation[];
   selectedListingId: string | null;
+  tradeIn: TradeInEstimate | null;
+  comparedCarIds: string[];
   application: Record<string, unknown> | null;
   paymentStatus: 'pending' | 'confirmed' | null;
 }

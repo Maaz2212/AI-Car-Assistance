@@ -5,7 +5,9 @@ import { ChatThread, ChatMessage } from '../components/ChatThread';
 import { GaugeDial } from '../components/GaugeDial';
 import { CarCard } from '../components/CarCard';
 import { McpAppSandbox } from '../components/McpAppSandbox';
-import { Car, Sparkles, ShieldCheck } from 'lucide-react';
+import { CompareModal } from '../components/CompareModal';
+import { TradeInBanner } from '../components/TradeInBanner';
+import { Car, Sparkles, ShieldCheck, Scale, ArrowRight } from 'lucide-react';
 
 export default function ShowroomPage() {
   const [sessionId, setSessionId] = useState<string>('');
@@ -19,6 +21,11 @@ export default function ShowroomPage() {
   const [statusText, setStatusText] = useState<string>('Gathering driving preferences...');
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+
+  // Standout Features State: Trade-in & Compare Mode
+  const [tradeIn, setTradeIn] = useState<any>(null);
+  const [comparedCarIds, setComparedCarIds] = useState<string[]>([]);
+  const [isCompareOpen, setIsCompareOpen] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -40,6 +47,7 @@ export default function ShowroomPage() {
           if (data.state) {
             setCurrentStage(data.state.phase || 'interview');
             setSelectedListingId(data.state.selectedListingId);
+            if (data.state.tradeIn !== undefined) setTradeIn(data.state.tradeIn);
           }
         }
 
@@ -85,6 +93,7 @@ export default function ShowroomPage() {
           if (data.state) {
             setCurrentStage(data.state.phase || 'interview');
             setSelectedListingId(data.state.selectedListingId);
+            if (data.state.tradeIn !== undefined) setTradeIn(data.state.tradeIn);
           }
           // Attach suggestions to the last agent message
           if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
@@ -160,8 +169,20 @@ export default function ShowroomPage() {
 
   const handleSelectCar = (listingId: string) => {
     setSelectedListingId(listingId);
-    // Send in format the regex reliably matches: "Apply for car-XXX"
     handleSendMessage(`Apply for ${listingId}`);
+  };
+
+  const handleToggleCompare = (carId: string) => {
+    setComparedCarIds((prev) => {
+      if (prev.includes(carId)) return prev.filter((id) => id !== carId);
+      if (prev.length >= 2) return [prev[1], carId];
+      return [...prev, carId];
+    });
+  };
+
+  const handleClearTradeIn = () => {
+    setTradeIn(null);
+    handleSendMessage('Clear trade-in');
   };
 
   const handleFormSubmit = async (formData: any) => {
@@ -205,8 +226,10 @@ export default function ShowroomPage() {
     { id: 'done', label: 'Confirmed' },
   ];
 
+  const comparedCars = recommendations.filter((c) => comparedCarIds.includes(c.id));
+
   return (
-    <div className="min-h-screen flex flex-col p-4 md:p-6 gap-6 max-w-[1700px] mx-auto">
+    <div className="min-h-screen flex flex-col p-4 md:p-6 gap-6 max-w-[1700px] mx-auto relative">
       {/* Showroom Header */}
       <header className="glass-panel rounded-2xl p-4 px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -245,7 +268,7 @@ export default function ShowroomPage() {
           />
         </section>
 
-        {/* Right 60%: A2UI Showroom Floor */}
+        {/* Right 60%: Showroom Floor & Catalogue */}
         <section className="lg:col-span-7 flex flex-col gap-6 min-h-[calc(100vh-140px)]">
           {/* Progress Gauge Dial */}
           <GaugeDial
@@ -266,7 +289,14 @@ export default function ShowroomPage() {
             />
           )}
 
-          {/* A2UI Showroom Catalogue Grid */}
+          {/* Trade-in Valuation Banner */}
+          <TradeInBanner
+            tradeIn={tradeIn}
+            onTradeInSubmit={handleSendMessage}
+            onClearTradeIn={handleClearTradeIn}
+          />
+
+          {/* Ranked Car Catalogue */}
           <div className="flex-1">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading font-bold text-lg text-showroom-ink flex items-center gap-2">
@@ -289,7 +319,7 @@ export default function ShowroomPage() {
                   Showroom Floor Ready
                 </h4>
                 <p className="font-sans text-sm text-gray-500 max-w-md">
-                  Answer the agent's questions in the chat to see real-time ranked recommendations with match scores and personalized reasoning.
+                  Answer the agent's questions in the chat to see real-time ranked recommendations with match scores, trade-in valuations, and side-by-side comparison.
                 </p>
               </div>
             ) : (
@@ -299,6 +329,8 @@ export default function ShowroomPage() {
                     key={car.id}
                     {...car}
                     onSelectCar={handleSelectCar}
+                    isCompared={comparedCarIds.includes(car.id)}
+                    onToggleCompare={handleToggleCompare}
                   />
                 ))}
               </div>
@@ -306,6 +338,51 @@ export default function ShowroomPage() {
           </div>
         </section>
       </main>
+
+      {/* Floating Comparison Bar (Appears when cars are selected to compare) */}
+      {comparedCarIds.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 bg-black/90 backdrop-blur-xl border border-showroom-amber/40 rounded-2xl p-3 px-5 flex items-center gap-4 shadow-amber-glow animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-showroom-amber" />
+            <span className="font-mono text-xs text-showroom-ink">
+              Compare Mode ({comparedCarIds.length}/2 selected)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {comparedCarIds.length === 2 ? (
+              <button
+                onClick={() => setIsCompareOpen(true)}
+                className="bg-showroom-amber hover:bg-amber-400 text-black font-mono font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all active:scale-95 shadow-amber-glow"
+              >
+                <span>View Comparison</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <span className="font-mono text-[11px] text-gray-400">
+                Click "+ Compare" on a 2nd car
+              </span>
+            )}
+
+            <button
+              onClick={() => setComparedCarIds([])}
+              className="text-xs text-gray-400 hover:text-white px-2 py-1"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Side-by-Side Comparison Modal */}
+      {isCompareOpen && (
+        <CompareModal
+          cars={comparedCars}
+          tradeIn={tradeIn}
+          onClose={() => setIsCompareOpen(false)}
+          onSelectCar={handleSelectCar}
+        />
+      )}
     </div>
   );
 }

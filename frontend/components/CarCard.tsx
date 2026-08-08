@@ -24,6 +24,8 @@ export interface CarCardProps {
   category: string;
   listingType: 'rent' | 'buy' | 'both';
   price: number | null;
+  netPrice?: number | null;
+  tradeInOffset?: number | null;
   dailyRate: number | null;
   mileage: number;
   fuelType: string;
@@ -35,6 +37,8 @@ export interface CarCardProps {
   matchScore: number;
   reasoning: string;
   onSelectCar?: (listingId: string) => void;
+  isCompared?: boolean;
+  onToggleCompare?: (listingId: string) => void;
 }
 
 export const CarCard: React.FC<CarCardProps> = ({
@@ -47,6 +51,8 @@ export const CarCard: React.FC<CarCardProps> = ({
   category,
   listingType,
   price,
+  netPrice,
+  tradeInOffset,
   dailyRate,
   mileage,
   fuelType,
@@ -58,9 +64,23 @@ export const CarCard: React.FC<CarCardProps> = ({
   matchScore,
   reasoning,
   onSelectCar,
+  isCompared = false,
+  onToggleCompare,
 }) => {
   return (
     <div className="glass-panel glass-panel-hover rounded-2xl overflow-hidden flex flex-col relative group">
+      {/* Compare Checkbox Button */}
+      <button
+        onClick={() => onToggleCompare?.(id)}
+        className={`absolute top-3 left-3 z-10 font-mono text-xs px-2.5 py-1 rounded-full border transition-all flex items-center gap-1.5 backdrop-blur-md ${
+          isCompared
+            ? 'bg-showroom-amber text-black border-showroom-amber font-bold shadow-amber-glow'
+            : 'bg-black/60 text-gray-300 border-white/20 hover:border-showroom-amber/60 hover:text-white'
+        }`}
+      >
+        <span>{isCompared ? '✓ Comparing' : '+ Compare'}</span>
+      </button>
+
       {/* Match Score Ring Badge */}
       <div className="absolute top-3 right-3 z-10 bg-black/60 backdrop-blur-md border border-showroom-teal/40 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-teal-glow">
         <div className="w-2 h-2 rounded-full bg-showroom-teal animate-ping" />
@@ -104,13 +124,26 @@ export const CarCard: React.FC<CarCardProps> = ({
             <span className="text-gray-400">{marketplace}</span>
           </div>
 
-          {/* Pricing Banner */}
+          {/* Pricing Banner with Trade-in Offset */}
           <div className="glass-panel rounded-xl p-3 mb-4 flex items-center justify-between border border-white/5">
             <div>
-              <span className="font-mono text-[10px] uppercase text-gray-400">Price / Rate</span>
-              <div className="font-mono font-bold text-lg text-showroom-ink">
-                {price ? `$${price.toLocaleString()}` : `$${dailyRate}/day`}
-              </div>
+              <span className="font-mono text-[10px] uppercase text-gray-400">
+                {netPrice !== null && netPrice !== undefined ? 'Net Price (After Trade-in)' : 'Price / Rate'}
+              </span>
+              {netPrice !== null && netPrice !== undefined && price ? (
+                <div className="flex items-baseline gap-2">
+                  <div className="font-mono font-extrabold text-lg text-showroom-amber">
+                    ${netPrice.toLocaleString()}
+                  </div>
+                  <div className="font-mono text-xs text-gray-400 line-through">
+                    ${price.toLocaleString()}
+                  </div>
+                </div>
+              ) : (
+                <div className="font-mono font-bold text-lg text-showroom-ink">
+                  {price ? `$${price.toLocaleString()}` : `$${dailyRate}/day`}
+                </div>
+              )}
             </div>
             {listingType === 'both' && dailyRate && price && (
               <div className="text-right">

@@ -77,6 +77,8 @@ export class AgentOrchestrator {
         searchResults: [],
         recommendations: [],
         selectedListingId: null,
+        tradeIn: null,
+        comparedCarIds: [],
         application: null,
         paymentStatus: null,
       });
@@ -91,14 +93,15 @@ export class AgentOrchestrator {
         `I can search through **370+ active listings** across 12 categories to help you find your vehicle.\n\n` +
         `🚗 **Available Categories:**\n` +
         `Sedan • SUV • Compact/Hatchback • Truck/Pickup • Minivan • Coupe • Convertible • Electric • Hybrid • Luxury • Sports Car • Off-Road/4x4\n\n` +
-        `💡 **Example queries:**\n` +
+        `💡 **Features you can try:**\n` +
         `• *"I want to buy a Sedan under $25k"*\n` +
-        `• *"Rent a Luxury car for the weekend"*\n\n` +
+        `• *"I have a 2019 Civic to trade in"*\n` +
+        `• *"Compare car-001 and car-002"*\n\n` +
         `What type of vehicle are you looking for today?`,
       suggestions: [
         'Buy a Sedan under $25k',
+        'Trade-in my 2019 Civic',
         'Show Electric cars under $45k',
-        'Rent a Luxury car',
         'Show all SUV options',
       ],
     };
@@ -113,6 +116,72 @@ export class AgentOrchestrator {
   ): Promise<SessionState> {
     const session = this.getOrCreateSession(sessionId);
     const textLower = userText.toLowerCase().trim();
+
+    // ─── Trade-in Intent Detection ──────────────────────────────────
+    const tradeInMatch = textLower.match(/(?:trade\s*in|trading|trade)\s*(?:my|a)?\s*(\d{4})?\s*([a-z0-9\s-]+)?/i)
+      || textLower.match(/(\d{4})\s+([a-z]+)\s+([a-z0-9]+)\s+(?:to|for)?\s*trade/i);
+
+    if (textLower.includes('trade in') || textLower.includes('trade-in') || (tradeInMatch && (textLower.includes('trade') || textLower.includes('my')))) {
+      const yearMatch = textLower.match(/\b(20\d{2}|19\d{2})\b/);
+      const year = yearMatch ? parseInt(yearMatch[1], 10) : 2019;
+
+      let brand = 'Honda';
+      let model = 'Civic';
+
+      const knownBrands = ['toyota', 'honda', 'ford', 'chevrolet', 'hyundai', 'kia', 'nissan', 'mazda', 'subaru', 'bmw', 'mercedes', 'audi', 'lexus', 'tesla', 'jeep', 'dodge'];
+      for (const b of knownBrands) {
+        if (textLower.includes(b)) {
+          brand = b.charAt(0).toUpperCase() + b.slice(1);
+          break;
+        }
+      }
+
+      const knownModels = ['civic', 'corolla', 'camry', 'accord', 'rav4', 'cr-v', 'f-150', 'mustang', 'elantra', 'tucson', 'altima', 'rogue', 'cx-5', 'forester', 'outback', 'model 3', 'wrangler'];
+      for (const m of knownModels) {
+        if (textLower.includes(m)) {
+          model = m.split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+          break;
+        }
+      }
+
+      const { estimateTradeIn } = require('./tools');
+      const estValue = estimateTradeIn(year, brand, model);
+      session.tradeIn = {
+        year,
+        brand,
+        model,
+        estimatedValue: estValue,
+        condition: 'good',
+      };
+
+      // Re-trigger showRecommendations if search results exist
+      if (session.recommendations.length > 0) {
+        const { a2uiMessages: recA2UI } = showRecommendations(session, session.recommendations);
+        onA2UI(recA2UI);
+      }
+
+      await this.stream(
+        `💰 **Trade-in Appraised!**\n\n` +
+        `• **Your Vehicle:** ${year} ${brand} ${model}\n` +
+        `• **Estimated Trade-in Value:** **$${estValue.toLocaleString()}**\n\n` +
+        `✨ **Trade-in offset applied!** All vehicle prices on your showroom floor now show the **Net Price after $${estValue.toLocaleString()} trade-in credit**.`,
+        onToken
+      );
+
+      onSuggestions(['Search Sedans under $25k', 'Search SUVs', 'Clear trade-in', 'Show expanded results']);
+      return session;
+    }
+
+    if (textLower.includes('clear trade-in') || textLower.includes('remove trade-in')) {
+      session.tradeIn = null;
+      if (session.recommendations.length > 0) {
+        const { a2uiMessages: recA2UI } = showRecommendations(session, session.recommendations);
+        onA2UI(recA2UI);
+      }
+      await this.stream(`Trade-in valuation removed. All listings are back to standard pricing.`, onToken);
+      onSuggestions(generateSuggestions(session, null, null, session.searchResults.length));
+      return session;
+    }
 
     // ─── Car selection — extract any car-XXX id from message ────────
     // Handles: "Select car car-133", "apply for car-133", "car-133", "book car car-133"

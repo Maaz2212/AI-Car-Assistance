@@ -114,6 +114,27 @@ export function searchListings(
   return { results: budgetMatched, cheapestInCategory, cheapestPrice, totalInCategory };
 }
 
+export function estimateTradeIn(year: number, brand: string, model: string): number {
+  const currentYear = 2026;
+  const age = Math.max(0, currentYear - year);
+  let baseValue = 18000;
+  const b = brand.toLowerCase();
+  const m = model.toLowerCase();
+
+  if (b.includes('bmw') || b.includes('mercedes') || b.includes('audi') || b.includes('lexus') || b.includes('porsche')) {
+    baseValue = 28000;
+  } else if (m.includes('f-150') || m.includes('silverado') || m.includes('tacoma') || m.includes('tahoe')) {
+    baseValue = 25000;
+  } else if (m.includes('rav4') || m.includes('cr-v') || m.includes('cx-5') || m.includes('forester') || m.includes('outback')) {
+    baseValue = 20000;
+  } else if (m.includes('civic') || m.includes('corolla') || m.includes('elantra') || m.includes('sentra') || m.includes('fit')) {
+    baseValue = 15000;
+  }
+
+  let value = baseValue * Math.pow(0.91, age);
+  return Math.max(2500, Math.min(45000, Math.round(value / 250) * 250));
+}
+
 export function showRecommendations(
   session: SessionState,
   recommendations: Array<{ listingId: string; score: number; reasoning: string }>
@@ -130,7 +151,7 @@ export function showRecommendations(
     })
     .filter((item): item is { listing: Listing; score: number; reasoning: string } => item !== null);
 
-  return { a2uiMessages: buildCatalogueMessages(rankedItems) };
+  return { a2uiMessages: buildCatalogueMessages(rankedItems, session.tradeIn) };
 }
 
 export function updateProgress(session: SessionState, phase: any, statusText: string) {
