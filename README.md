@@ -7,6 +7,8 @@ An intelligent, conversational vehicle matchmaker and purchasing assistant built
 ## 🌟 Features
 
 - **Conversational Search & Filtering**: Interview-driven slot filling for vehicle intent (buy vs. rent), body style, budget limits, fuel type, and specific user preferences.
+- **Side-by-Side Compare Mode**: Select any 2 vehicles to open an interactive side-by-side spec comparison overlay highlighting differences, technical specs, and unique feature badges.
+- **Smart Trade-in Valuation**: Conversational and manual trade-in appraisal engine. Detects existing vehicles (e.g. *"I have a 2019 Civic to trade in"*), calculates estimated trade value, and automatically applies **Net Price offsets** across all listings.
 - **Strict Budget & Category Matching**: Enforces budget constraints with fallback recommendations and transparent alternative suggestions when exact matches are unavailable.
 - **Dynamic Catalogue UI**: Interactive vehicle cards featuring specs, colors, match confidence scoring, and personalized recommendation rationale.
 - **Contextual Suggestion Chips**: Dynamic, data-driven quick replies generated after each turn based on search results and inventory state.
@@ -21,14 +23,14 @@ An intelligent, conversational vehicle matchmaker and purchasing assistant built
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Client (Next.js - Port 3000)                                           │
 │ ┌──────────────────────┐ ┌────────────────────┐ ┌───────────────────┐  │
-│ │ Chat Thread & Chips  │ │ Showroom Catalogue │ │ Application Form  │  │
+│ │ Chat Thread & Chips  │ │ Showroom Catalogue │ │ Compare & TradeIn │  │
 │ └──────────┬───────────┘ └─────────┬──────────┘ └─────────┬─────────┘  │
 │            └────────────────── WebSocket ─────────────────┘            │
 └────────────────────────────────────┬───────────────────────────────────┘
                                      │
 ┌────────────────────────────────────┴───────────────────────────────────┐
 │ Backend & Agent Orchestrator (Node.js - Port 3001)                     │
-│ - Session state management & preference extraction                     │
+│ - Session state management, trade-in valuation & preference parsing     │
 │ - Multi-step recommendation engine & strict filter pipeline             │
 │ - REST API endpoints for application submission & payment gateway      │
 └────────────────────────────────────────────────────────────────────────┘
@@ -104,14 +106,14 @@ npm run start:frontend
 CarAssistance/
 ├── backend/
 │   └── src/
-│       ├── agent.ts            # Agent orchestrator & intent processing
-│       ├── tools.ts            # Marketplace search & filter utilities
+│       ├── agent.ts            # Agent orchestrator, intent & trade-in processing
+│       ├── tools.ts            # Search, filter & trade-in valuation engine
 │       ├── a2ui-templates.ts   # UI component state generators
 │       ├── server.ts           # Express REST & WebSocket server
 │       └── types.ts            # Data models and session state definitions
 ├── frontend/
 │   ├── app/                    # Next.js App Router pages & layout
-│   ├── components/             # React UI components (CarCard, ChatThread, GaugeDial, etc.)
+│   ├── components/             # React UI components (CarCard, ChatThread, CompareModal, TradeInBanner, etc.)
 │   └── public/                 # Static assets
 ├── scripts/
 │   └── generate-listings.ts    # Synthetic vehicle dataset generator
@@ -131,7 +133,7 @@ CarAssistance/
 - **Incoming Messages**:
   - `{ type: 'chat_token', sessionId: string, token: string }`
 - **Outgoing Events**:
-  - `session_state`: Transmits current session state and preferences.
+  - `session_state`: Transmits current session state, preferences, and trade-in valuation.
   - `chat_token`: Streams response text tokens.
   - `chat_end`: Signals message completion with contextual suggestion chips.
   - `a2ui_messages`: Transmits UI updates for progress indicators and vehicle cards.
