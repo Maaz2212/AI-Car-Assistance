@@ -1,0 +1,28 @@
+{
+  "name": "ai-car-matchmaker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Car Matchmaker — Multistep conversational agent with A2UI catalog & sandboxed MCP Apps",
+  "main": "backend/src/server.ts",
+  "scripts": {
+    "generate:data": "npx tsx scripts/generate-listings.ts",
+    "dev:backend": "npx tsx watch backend/src/server.ts",
+    "build": "tsc -b",
+    "start": "node dist/backend/src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.1.0",
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.1",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

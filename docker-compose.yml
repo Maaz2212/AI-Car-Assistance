@@ -1,0 +1,15 @@
+
+services:
+  app:
+    container_name: ai-car-matchmaker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: always
