@@ -215,13 +215,13 @@ export default function ShowroomPage() {
           </div>
           <div>
             <h1 className="font-heading font-extrabold text-xl text-showroom-ink tracking-tight flex items-center gap-2">
-              AI Car Matchmaker
+              Car Matchmaker & Assistant
               <span className="text-xs font-mono font-normal bg-white/10 px-2 py-0.5 rounded-full text-showroom-teal border border-showroom-teal/30">
-                Night Showroom v1.0
+                v1.0
               </span>
             </h1>
             <p className="font-mono text-xs text-gray-400">
-              A2UI Generative Canvas • MCP App Sandboxed Checkout • Monroney Label Spec View
+              Interactive Vehicle Catalogue • Application & Checkout Portal
             </p>
           </div>
         </div>

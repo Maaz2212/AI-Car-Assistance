@@ -49,10 +49,10 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, onSendMessage,
             <Bot className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-heading font-bold text-base text-showroom-ink">AI Car Concierge</h2>
+            <h2 className="font-heading font-bold text-base text-showroom-ink">Car Assistant</h2>
             <span className="font-mono text-[10px] text-showroom-teal flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-showroom-teal animate-pulse" />
-              Multistep Agent Active • 160+ Listings
+              Active Assistant • 370+ Listings
             </span>
           </div>
         </div>

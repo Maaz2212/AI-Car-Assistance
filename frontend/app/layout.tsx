@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AI Car Matchmaker — Night Showroom',
-  description: 'Conversational AI concierge for renting & buying vehicles with A2UI catalogue and sandboxed MCP Apps',
+  title: 'Car Assistance & Vehicle Matchmaker',
+  description: 'Interactive vehicle matchmaker for browsing, comparing, renting, and purchasing vehicles.',
 };
 
 export default function RootLayout({

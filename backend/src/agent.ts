@@ -87,14 +87,14 @@ export class AgentOrchestrator {
   public buildWelcomeMessage(): { text: string; suggestions: string[] } {
     return {
       text:
-        `👋 Welcome to **AI Car Matchmaker** — your personal showroom concierge!\n\n` +
-        `I search **378 real listings** across 12 categories to find your perfect vehicle.\n\n` +
-        `🚗 **Categories I cover:**\n` +
+        `👋 Welcome to **Car Matchmaker & Assistant**!\n\n` +
+        `I can search through **370+ active listings** across 12 categories to help you find your vehicle.\n\n` +
+        `🚗 **Available Categories:**\n` +
         `Sedan • SUV • Compact/Hatchback • Truck/Pickup • Minivan • Coupe • Convertible • Electric • Hybrid • Luxury • Sports Car • Off-Road/4x4\n\n` +
-        `💡 **Try saying:**\n` +
-        `*"I want to buy a Sedan under $25k"* — I'll show only matching cars, never over budget.\n` +
-        `*"Rent me a Luxury car this weekend"* — I'll find daily rates that fit.\n\n` +
-        `What are you looking for today?`,
+        `💡 **Example queries:**\n` +
+        `• *"I want to buy a Sedan under $25k"*\n` +
+        `• *"Rent a Luxury car for the weekend"*\n\n` +
+        `What type of vehicle are you looking for today?`,
       suggestions: [
         'Buy a Sedan under $25k',
         'Show Electric cars under $45k',

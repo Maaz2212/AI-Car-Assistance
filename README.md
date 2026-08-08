@@ -1,83 +1,143 @@
-# 🏎️ AI Car Matchmaker — 2-Day Hackathon Build
+# AI Car Assistance & Matchmaker
 
-> A chat-based multistep AI concierge that interviews users about buying/renting vehicles, searches a live mock marketplace of 128+ listings, renders ranked recommendations with personalized reasoning using **A2UI** (agent-to-UI protocol), and handles inline application form filling & mock checkout payment via **sandboxed MCP Apps**.
-
----
-
-## 🚀 Quickstart for Judges (Docker Compose)
-
-Any judge with Docker installed can clone the repository and run **one single command**:
-
-```bash
-docker compose up --build
-```
-*(Or `docker-compose up --build` on older Docker CLI versions)*
-
-Once Docker finishes building, open your browser at:
-👉 **[http://localhost:3000](http://localhost:3000)**
+An intelligent, conversational vehicle matchmaker and purchasing assistant built with Next.js, Node.js, and TypeScript. The application guides users through an interactive process to find, compare, and apply for buying or renting vehicles from a dataset of 370+ listings across 12 categories.
 
 ---
 
-## 🌟 System Architecture
+## 🌟 Features
+
+- **Conversational Search & Filtering**: Interview-driven slot filling for vehicle intent (buy vs. rent), body style, budget limits, fuel type, and specific user preferences.
+- **Strict Budget & Category Matching**: Enforces budget constraints with fallback recommendations and transparent alternative suggestions when exact matches are unavailable.
+- **Dynamic Catalogue UI**: Interactive vehicle cards featuring specs, colors, match confidence scoring, and personalized recommendation rationale.
+- **Contextual Suggestion Chips**: Dynamic, data-driven quick replies generated after each turn based on search results and inventory state.
+- **Integrated Application & Checkout**: Streamlined inline workflow for vehicle application submission and booking confirmation.
+- **Docker Ready**: Single-command containerized deployment using Docker Compose.
+
+---
+
+## 🏗️ Architecture
 
 ```
-┌──────────────────────────────── Browser ────────────────────────────────┐
-│ Next.js Chat Host (Port 3000)                                           │
-│ ┌───────────────┐ ┌───────────────────────┐ ┌───────────────────┐       │
-│ │ Chat Thread   │ │ A2UI Showroom Canvas  │ │ MCP App Sandbox   │       │
-│ │ (messages)    │ │ - GaugeDial Progress  │ │ <iframe srcdoc>   │       │
-│ │               │ │ - CarCard Catalogue   │ │ - Application Form│       │
-│ │               │ │                       │ │ - Mock Checkout   │       │
-│ └───────┬───────┘ └───────────┬───────────┘ └─────────┬─────────┘       │
-│         └───────────────── Single WebSocket ───────────┘                 │
-└──────────────────────────────────┼──────────────────────────────────────┘
-                                   │
-┌───────────────────────────────── Backend ──────────────────────────────┐
-│ Agent Orchestrator (Port 3001)                                          │
-│ - Owns session state loop (interview -> research -> recommend -> book)  │
-│ - Deterministic A2UI protocol message builder                            │
-│ - Single MCP Client & tool call relay gateway                           │
+┌────────────────────────────────────────────────────────────────────────┐
+│ Client (Next.js - Port 3000)                                           │
+│ ┌──────────────────────┐ ┌────────────────────┐ ┌───────────────────┐  │
+│ │ Chat Thread & Chips  │ │ Showroom Catalogue │ │ Application Form  │  │
+│ └──────────┬───────────┘ └─────────┬──────────┘ └─────────┬─────────┘  │
+│            └────────────────── WebSocket ─────────────────┘            │
+└────────────────────────────────────┬───────────────────────────────────┘
+                                     │
+┌────────────────────────────────────┴───────────────────────────────────┐
+│ Backend & Agent Orchestrator (Node.js - Port 3001)                     │
+│ - Session state management & preference extraction                     │
+│ - Multi-step recommendation engine & strict filter pipeline             │
+│ - REST API endpoints for application submission & payment gateway      │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📋 Hard Requirements Compliance Matrix (§2)
+## 🛠️ Technology Stack
 
-| Requirement | Implementation Status | Notes |
-| :--- | :---: | :--- |
-| **Conversational Interview First** | ✅ COMPLETED | Agent asks about intent (buy/rent), use case, category, budget, date before searching. |
-| **Ranked Recommendations & Reasoning** | ✅ COMPLETED | Each card has match score badge (%) and italicized personalized reasoning string tied to preferences. |
-| **Form-Filling MCP App** | ✅ COMPLETED | Application form rendered in sandboxed `<iframe srcdoc>` via MCP protocol relay. |
-| **Mock Payment/Checkout MCP App** | ✅ COMPLETED | Demo checkout rendered in sandboxed `<iframe srcdoc>` via MCP protocol relay. |
-| **A2UI Protocol Generative UI** | ✅ COMPLETED | Uses `@a2ui/react` for `GaugeDial` 4-stage progress indicator and `CarCard` catalogue grid. |
-| **Mock Marketplace Dataset** | ✅ COMPLETED | 128 listings generated across 12 categories & 17 brands (`data/listings.json`). |
-| **State Persistence Across 4 Phases** | ✅ COMPLETED | Session state persists phase, captured preferences, search results, selected listing, and payment status. |
-| **Spec-Driven & Docker Ready** | ✅ COMPLETED | `constitution.md`, `Dockerfile`, and `docker-compose.yml` fully configured. |
+- **Frontend**: Next.js 14, React 18, Tailwind CSS, Lucide Icons
+- **Backend**: Node.js, Express, WebSocket (`ws`), TypeScript
+- **Dataset**: Local JSON repository generator (`scripts/generate-listings.ts`)
+- **Containerization**: Docker, Docker Compose
 
 ---
 
-## 🎬 7-Step Hackathon Demo Script (§13)
+## 🚀 Getting Started
 
-1. **Open App:** Navigate to `http://localhost:3000` with a fresh session.
-2. **Conversational Interview:** Answer the agent's questions naturally (e.g., *"Looking to buy an SUV under $40k for daily commute"*).
-3. **Live A2UI Progress & Catalogue:** Watch the `GaugeDial` move from **Interview** $\rightarrow$ **Research** $\rightarrow$ **Recommend**. The showroom floor populates with glass `CarCard` items, each displaying a match score and personalized reasoning line.
-4. **Select Car:** Click **Apply & Rent / Buy** on a card (or type *"Select car-001"*).
-5. **Form-Fill MCP App:** Watch the Application Form open inline in the sandboxed iframe. Submit applicant details.
-6. **Payment MCP App:** Watch the Mock Checkout window render deposit fields. Click **Confirm Booking Deposit**.
-7. **Booking Summary:** Observe the agent confirming your booking code and summary in chat, proving session state persisted seamlessly across all 4 phases.
+### Prerequisites
+
+- Node.js 18+ and npm
+- (Optional) Docker Desktop
 
 ---
 
-## 🛠️ Local Development (Without Docker)
+### Option 1: Docker Compose (Recommended)
 
-If running without Docker, execute:
+Run the full application stack in a single container:
 
 ```bash
-# 1. Install & Generate Dataset
-npm install && cd frontend && npm install && cd ..
-npm run generate:data
+docker compose up --build
+```
 
-# 2. Run via one command
+Access the application at: **[http://localhost:3000](http://localhost:3000)**
+
+---
+
+### Option 2: Local Development
+
+1. **Install dependencies:**
+
+```bash
+npm run install:all
+```
+
+2. **Generate the mock dataset:**
+
+```bash
+npm run generate:data
+```
+
+3. **Start the application services:**
+
+```bash
 ./start.sh
 ```
+
+Or start the backend and frontend separately:
+
+```bash
+# Terminal 1 (Backend Server - Port 3001)
+npm run start:backend
+
+# Terminal 2 (Frontend App - Port 3000)
+npm run start:frontend
+```
+
+---
+
+## 📁 Project Structure
+
+```
+CarAssistance/
+├── backend/
+│   └── src/
+│       ├── agent.ts            # Agent orchestrator & intent processing
+│       ├── tools.ts            # Marketplace search & filter utilities
+│       ├── a2ui-templates.ts   # UI component state generators
+│       ├── server.ts           # Express REST & WebSocket server
+│       └── types.ts            # Data models and session state definitions
+├── frontend/
+│   ├── app/                    # Next.js App Router pages & layout
+│   ├── components/             # React UI components (CarCard, ChatThread, GaugeDial, etc.)
+│   └── public/                 # Static assets
+├── scripts/
+│   └── generate-listings.ts    # Synthetic vehicle dataset generator
+├── data/
+│   └── listings.json           # Active inventory dataset (370+ vehicles)
+├── docker-compose.yml          # Container deployment specification
+├── Dockerfile                  # Multi-stage production container build
+└── start.sh                    # Startup script for concurrent local execution
+```
+
+---
+
+## 📡 API & WebSocket Protocols
+
+### WebSocket (`ws://localhost:3001/ws`)
+
+- **Incoming Messages**:
+  - `{ type: 'chat_token', sessionId: string, token: string }`
+- **Outgoing Events**:
+  - `session_state`: Transmits current session state and preferences.
+  - `chat_token`: Streams response text tokens.
+  - `chat_end`: Signals message completion with contextual suggestion chips.
+  - `a2ui_messages`: Transmits UI updates for progress indicators and vehicle cards.
+
+### REST Endpoints
+
+- `POST /api/application/submit` — Handles vehicle application submission.
+- `POST /api/payment/confirm` — Confirms booking deposit and updates order status.
+- `GET /` & `GET /api/health` — Service status check.
