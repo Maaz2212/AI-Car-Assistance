@@ -2,6 +2,7 @@
 
 CarMatch is a modern, AI-powered vehicle matchmaker built with **Next.js 14**, **Node.js**, **TypeScript**, and a multi-step agent powered by **Groq (Llama 3.3 70B)**. It helps users search, compare, appraise trade-ins, and apply for 380+ listings across 12 car categories.
 
+One more thing currently you book any car with any type of payment method you have to deposit some initial price not whole as whatever listed basically a initial payment after that for transparency when you visit and see by yourself then you have to pay whole leftover amount:
 ---
 
 ## ⚡ Quick Start (Docker - 1 Command)
