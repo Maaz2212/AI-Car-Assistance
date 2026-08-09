@@ -1,4 +1,6 @@
-import { Listing, SessionState } from './types';
+import 'dotenv/config';
+import Groq from 'groq-sdk';
+import { SessionState, Phase } from './types';
 import {
   searchListings,
   showRecommendations,
@@ -6,391 +8,395 @@ import {
   startCheckout,
   updatePreferences,
   updateProgress,
+  estimateTradeIn,
   getAllListings,
 } from './tools';
 
-// Build smart, data-driven suggestions based on what's actually in the dataset
-function generateSuggestions(session: SessionState, cheapestInCategory: Listing | null, cheapestPrice: number | null, resultsFound: number): string[] {
-  const prefs = session.preferences;
-  const phase = session.phase;
-  const intent = prefs.intent || 'buy';
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// ─── Session store ────────────────────────────────────────────────────────────
+const sessions = new Map<string, SessionState>();
+const sessionHistory = new Map<string, Groq.Chat.ChatCompletionMessageParam[]>();
+
+export function getOrCreateSession(sessionId: string): SessionState {
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, {
+      sessionId,
+      phase: 'interview',
+      preferences: { intent: null, useCase: null, category: null, budget: null, targetDate: null, mustHaves: [] },
+      searchResults: [],
+      recommendations: [],
+      selectedListingId: null,
+      tradeIn: null,
+      comparedCarIds: [],
+      application: null,
+      paymentStatus: null,
+    });
+    sessionHistory.set(sessionId, []);
+  }
+  return sessions.get(sessionId)!;
+}
+
+// ─── Welcome message ─────────────────────────────────────────────────────────
+export function buildWelcomeMessage(): { text: string; suggestions: string[] } {
+  const total = getAllListings().length;
+  return {
+    text:
+      `👋 Welcome to **CarMatch — AI Vehicle Concierge**!\n\n` +
+      `I'm powered by **Llama 3.3 (Groq)** and can search through **${total}+ active listings** across 12 categories.\n\n` +
+      `🚗 **Categories:** Sedan • SUV • Compact • Truck • Minivan • Coupe • Convertible • Electric • Hybrid • Luxury • Sports Car • Off-Road\n\n` +
+      `💡 **Try saying:**\n` +
+      `• *"I want to buy a Sedan under $25k"*\n` +
+      `• *"I have a 2019 Civic to trade in"*\n` +
+      `• *"Compare car-001 and car-002"*\n\n` +
+      `What type of vehicle are you looking for today?`,
+    suggestions: ['Buy a Sedan under $25k', 'Trade-in my 2019 Civic', 'Show Electric cars under $45k', 'Show all SUV options'],
+  };
+}
+
+// ─── Tool definitions (JSON Schema format for Groq API) ─────────────────────
+const TOOLS: Groq.Chat.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'updatePreferences',
+      description: 'Store the user\'s vehicle preferences. Call whenever user mentions intent (buy/rent), category, budget, or use case.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string', enum: ['buy', 'rent'], description: 'Whether user wants to buy or rent' },
+          category: { type: 'array', items: { type: 'string' }, description: 'Vehicle categories e.g. Sedan, SUV, Electric, Luxury, Hybrid, Sports Car' },
+          budgetMax: { type: 'number', description: 'Maximum budget in USD' },
+          budgetMin: { type: 'number', description: 'Minimum budget in USD (usually 0)' },
+          useCase: { type: 'string', description: 'Use case e.g. family, commuting, off-road' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'searchCars',
+      description: 'Search the CarMatch database for vehicles. Call this after collecting intent and/or category to find real listings.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'array', items: { type: 'string' }, description: 'Categories to search' },
+          intent: { type: 'string', enum: ['buy', 'rent'], description: 'Buy or rent' },
+          maxBudget: { type: 'number', description: 'Max price filter' },
+          ignorebudget: { type: 'boolean', description: 'True to show all regardless of budget' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'recommendCars',
+      description: 'Display ranked car recommendations on the UI. Call AFTER searchCars returns results.',
+      parameters: {
+        type: 'object',
+        properties: {
+          carIds: { type: 'array', items: { type: 'string' }, description: 'Car IDs to recommend (from search results)' },
+          reasonings: { type: 'array', items: { type: 'string' }, description: 'Reasoning for each car' },
+          scores: { type: 'array', items: { type: 'number' }, description: 'Match score (0-100) for each car' },
+        },
+        required: ['carIds', 'reasonings', 'scores'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'estimateTradeIn',
+      description: 'Estimate trade-in value when user mentions they have a car to trade.',
+      parameters: {
+        type: 'object',
+        properties: {
+          year: { type: 'number', description: 'Year of trade-in vehicle' },
+          brand: { type: 'string', description: 'Brand e.g. Honda, Toyota' },
+          model: { type: 'string', description: 'Model e.g. Civic, Camry' },
+        },
+        required: ['year', 'brand', 'model'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'openApplicationForm',
+      description: 'Open the application/booking form for a specific car. Call when user selects a car to apply for.',
+      parameters: {
+        type: 'object',
+        properties: {
+          carId: { type: 'string', description: 'Car listing ID e.g. car-001, car-etron-gt' },
+        },
+        required: ['carId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clearTradeIn',
+      description: 'Remove the trade-in vehicle so prices return to standard listing prices.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'closeForm',
+      description: 'Close the current form and return user to browsing.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+];
+
+// ─── Tool executor ────────────────────────────────────────────────────────────
+async function executeTool(
+  name: string,
+  args: any,
+  session: SessionState,
+  onA2UI: (msgs: any[]) => void
+): Promise<string> {
+  try {
+    switch (name) {
+      case 'updatePreferences': {
+        const { updatedPrefs, a2uiMessages } = updatePreferences(session, {
+          intent: args.intent,
+          category: args.category,
+          budget: args.budgetMax ? { min: args.budgetMin ?? 0, max: args.budgetMax, currency: 'USD' } : undefined,
+          useCase: args.useCase,
+        });
+        onA2UI(a2uiMessages);
+        return JSON.stringify({ success: true, stored: updatedPrefs });
+      }
+
+      case 'searchCars': {
+        const progressMsgs = updateProgress(session, 'researching', 'Searching CarMatch marketplace...');
+        onA2UI(progressMsgs);
+        const { results, cheapestInCategory, cheapestPrice, totalInCategory } = searchListings(session, {
+          category: args.category,
+          intent: args.intent ?? session.preferences.intent,
+          maxBudget: args.maxBudget,
+          ignorebudget: args.ignorebudget,
+        });
+        const top8 = results.slice(0, 8);
+        const intent = args.intent ?? session.preferences.intent ?? 'buy';
+        const summary = top8.map((c, i) => {
+          const priceStr = intent === 'rent' ? `$${c.dailyRate}/day` : c.price ? `$${c.price.toLocaleString()}` : 'Contact for price';
+          return `${i + 1}. ID:${c.id} — ${c.year} ${c.brand} ${c.model} (${c.category}) · ${c.color} · ${priceStr} · ${c.condition} · ${c.location}`;
+        });
+        return JSON.stringify({ totalFound: results.length, showing: top8.length, cheapestAvailable: cheapestPrice, results: summary, hasMore: results.length > 8 });
+      }
+
+      case 'recommendCars': {
+        const recs = (args.carIds || []).map((id: string, i: number) => ({
+          listingId: id,
+          score: args.scores?.[i] ?? 80,
+          reasoning: args.reasonings?.[i] ?? 'Great match for your needs',
+        }));
+        const { a2uiMessages } = showRecommendations(session, recs);
+        onA2UI(a2uiMessages);
+        return JSON.stringify({ success: true, recommended: recs.length });
+      }
+
+      case 'estimateTradeIn': {
+        const value = estimateTradeIn(args.year, args.brand, args.model);
+        session.tradeIn = { year: args.year, brand: args.brand, model: args.model, estimatedValue: value };
+        if (session.recommendations.length > 0) {
+          const { a2uiMessages } = showRecommendations(session, session.recommendations);
+          onA2UI(a2uiMessages);
+        }
+        return JSON.stringify({ vehicle: `${args.year} ${args.brand} ${args.model}`, estimatedValue: value, formattedValue: `$${value.toLocaleString()}` });
+      }
+
+      case 'openApplicationForm': {
+        const { a2uiMessages } = startApplication(session, args.carId);
+        onA2UI(a2uiMessages);
+        return JSON.stringify({ success: true, formOpenedFor: args.carId });
+      }
+
+      case 'clearTradeIn': {
+        session.tradeIn = null;
+        if (session.recommendations.length > 0) {
+          const { a2uiMessages } = showRecommendations(session, session.recommendations);
+          onA2UI(a2uiMessages);
+        }
+        return JSON.stringify({ success: true });
+      }
+
+      case 'closeForm': {
+        session.selectedListingId = null;
+        session.phase = session.recommendations.length > 0 ? 'recommending' : 'interview';
+        if (session.recommendations.length > 0) {
+          const { a2uiMessages } = showRecommendations(session, session.recommendations);
+          onA2UI(a2uiMessages);
+        } else {
+          onA2UI(updateProgress(session, 'interview', 'Gathering preferences...'));
+        }
+        return JSON.stringify({ success: true });
+      }
+
+      default:
+        return JSON.stringify({ error: `Unknown tool: ${name}` });
+    }
+  } catch (err: any) {
+    return JSON.stringify({ error: err.message });
+  }
+}
+
+// ─── System prompt ────────────────────────────────────────────────────────────
+function buildSystemPrompt(session: SessionState): string {
+  const prefs = session.preferences;
+  return `You are CarMatch AI — a premium vehicle concierge. Help users find, compare, and apply for vehicles.
+
+RULES:
+- ALWAYS use tools — never fabricate car data.
+- After user mentions intent + category: call updatePreferences THEN searchCars THEN recommendCars.
+- When recommending: pick 3-6 cars from the search results list by their exact IDs. Provide genuine reasoning and scores.
+- For trade-ins: call estimateTradeIn.
+- When user says "apply for car-XXX" or "book car-XXX": call openApplicationForm.
+- Use **bold** for car names and prices in your text replies.
+
+SESSION STATE:
+- Phase: ${session.phase}
+- Intent: ${prefs.intent ?? 'not set'}
+- Categories: ${prefs.category?.join(', ') ?? 'not set'}
+- Budget: ${prefs.budget ? `$${prefs.budget.max.toLocaleString()}` : 'not set'}
+- Trade-in: ${session.tradeIn ? `${session.tradeIn.year} ${session.tradeIn.brand} ${session.tradeIn.model} = $${session.tradeIn.estimatedValue.toLocaleString()}` : 'none'}
+- Results loaded: ${session.searchResults.length}`;
+}
+
+// ─── Main process function with manual multi-step tool loop ──────────────────
+export async function processUserMessage(
+  sessionId: string,
+  userText: string,
+  onToken: (token: string) => void,
+  onA2UI: (msgs: any[]) => void,
+  onSuggestions: (chips: string[]) => void
+): Promise<SessionState> {
+  const session = getOrCreateSession(sessionId);
+  const history = sessionHistory.get(sessionId)!;
+
+  // Add user message
+  history.push({ role: 'user', content: userText });
+
+  let finalText = '';
+
+  try {
+    // Multi-step agentic loop (up to 8 steps)
+    for (let step = 0; step < 8; step++) {
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: buildSystemPrompt(session) },
+          ...history,
+        ],
+        tools: TOOLS,
+        tool_choice: 'auto',
+        max_tokens: 1024,
+        temperature: 0.3,
+      });
+
+      const choice = response.choices[0];
+      const message = choice.message;
+
+      // Add assistant turn to history
+      history.push(message as any);
+
+      // If no tool calls — final text response
+      if (!message.tool_calls || message.tool_calls.length === 0) {
+        finalText = message.content || '';
+        break;
+      }
+
+      // Execute all tool calls in this step
+      const toolResultMessages: Groq.Chat.ChatCompletionMessageParam[] = [];
+      for (const toolCall of message.tool_calls) {
+        const toolName = toolCall.function.name;
+        let toolArgs: any = {};
+        try { toolArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch { toolArgs = {}; }
+
+        console.log(`[Agent] Step ${step + 1} — calling tool: ${toolName}`, toolArgs);
+        const result = await executeTool(toolName, toolArgs, session, onA2UI);
+
+        toolResultMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: result,
+        } as any);
+      }
+
+      // Add tool results to history for next step
+      history.push(...toolResultMessages);
+
+      // If the model said stop or we hit final step, break
+      if (choice.finish_reason === 'stop') break;
+    }
+
+    // Trim history to last 30 messages
+    if (history.length > 60) history.splice(0, history.length - 60);
+    sessionHistory.set(sessionId, history);
+
+    // Stream the final text response
+    if (finalText) {
+      const words = finalText.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        onToken(words[i] + (i < words.length - 1 ? ' ' : ''));
+        await new Promise((r) => setTimeout(r, 8));
+      }
+    }
+
+  } catch (err: any) {
+    console.error('[Agent Error]', err.message);
+    const errMsg = `⚠️ Something went wrong: ${err.message?.substring(0, 100)}. Please try again.`;
+    for (const word of errMsg.split(' ')) {
+      onToken(word + ' ');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+
+  onSuggestions(buildSuggestions(session));
+  return session;
+}
+
+// ─── Smart suggestions ────────────────────────────────────────────────────────
+function buildSuggestions(session: SessionState): string[] {
+  const { phase, preferences: prefs, searchResults, tradeIn } = session;
   if (phase === 'done') return ['Start a new search', 'Book another vehicle'];
   if (phase === 'payment') return ['Confirm payment', 'Go back to search'];
   if (phase === 'form') return ['Submit application', 'Choose a different car'];
-
-  const suggestions: string[] = [];
-
-  if (resultsFound === 0 && cheapestPrice !== null) {
-    // No results — offer data-driven budget raise
-    const suggestedBudget = Math.ceil(cheapestPrice * 1.1 / 1000) * 1000;
-    suggestions.push(`Raise budget to $${suggestedBudget.toLocaleString()}`);
-    if (cheapestInCategory) {
-      suggestions.push(`Show cheapest ${cheapestInCategory.category} (from $${cheapestPrice?.toLocaleString()})`);
-    }
-    suggestions.push('Search a different category');
-    suggestions.push('Switch to renting instead');
-    return suggestions;
-  }
-
-  if (resultsFound > 0 && prefs.budget?.max) {
-    // Results found — offer to adjust
-    const lowerBudget = Math.floor(prefs.budget.max * 0.75 / 1000) * 1000;
-    const higherBudget = Math.ceil(prefs.budget.max * 1.3 / 1000) * 1000;
-    if (lowerBudget >= 5000) suggestions.push(`Tighten budget to $${lowerBudget.toLocaleString()}`);
-    suggestions.push(`Raise budget to $${higherBudget.toLocaleString()} for more options`);
-  }
-
-  if (!prefs.intent) return ['I want to buy a car', 'I want to rent a car', 'Show all listings'];
-  if (!prefs.category?.length) return ['Show me Sedans', 'Show me SUVs', 'Show me Electric cars', 'Show me Hybrids'];
+  if (!prefs.intent) return ['I want to buy a car', 'I want to rent a car', 'Show all listings', 'Browse luxury cars'];
+  if (!prefs.category?.length) return ['Show me Sedans', 'Show me SUVs', 'Show me Electric cars', 'Show me Hybrid cars'];
   if (!prefs.budget) return ['Budget under $20k', 'Budget under $35k', 'Budget under $50k', 'Flexible budget'];
-
-  // Category switches
-  const categories = ['Sedan', 'SUV', 'Electric', 'Hybrid', 'Luxury', 'Sports Car', 'Truck/Pickup', 'Compact/Hatchback', 'Off-Road/4x4'];
-  const currentCats = prefs.category || [];
-  const otherCats = categories.filter((c) => !currentCats.includes(c));
-  if (otherCats.length > 0) suggestions.push(`Show me ${otherCats[0]}s instead`);
-  if (otherCats.length > 1) suggestions.push(`Browse ${otherCats[1]} options`);
-
-  if (intent === 'buy') suggestions.push('Switch to renting instead');
-  else suggestions.push('Switch to buying instead');
-
-  return suggestions.slice(0, 4);
+  const chips: string[] = [];
+  if (searchResults.length > 0) {
+    chips.push('Show more options');
+    if (!tradeIn) chips.push('I have a trade-in');
+    chips.push(prefs.intent === 'buy' ? 'Switch to renting' : 'Switch to buying');
+    chips.push('Change my budget');
+  } else {
+    chips.push('Raise my budget', 'Try a different category', 'Show all listings');
+  }
+  return chips.slice(0, 4);
 }
 
-export class AgentOrchestrator {
-  private sessions: Map<string, SessionState> = new Map();
+// ─── Application & Payment handlers ─────────────────────────────────────────
+export function handleApplicationSubmit(sessionId: string, formData: Record<string, unknown>) {
+  const session = getOrCreateSession(sessionId);
+  session.application = formData;
+  const { a2uiMessages } = startCheckout(session, `APP-${Date.now().toString().slice(-4)}`);
+  return { session, a2uiMessages };
+}
 
-  public getOrCreateSession(sessionId: string): SessionState {
-    if (!this.sessions.has(sessionId)) {
-      this.sessions.set(sessionId, {
-        sessionId,
-        phase: 'interview',
-        preferences: {
-          intent: null,
-          useCase: null,
-          category: null,
-          budget: null,
-          targetDate: null,
-          mustHaves: [],
-        },
-        searchResults: [],
-        recommendations: [],
-        selectedListingId: null,
-        tradeIn: null,
-        comparedCarIds: [],
-        application: null,
-        paymentStatus: null,
-      });
-    }
-    return this.sessions.get(sessionId)!;
-  }
-
-  public buildWelcomeMessage(): { text: string; suggestions: string[] } {
-    return {
-      text:
-        `👋 Welcome to **Car Matchmaker & Assistant**!\n\n` +
-        `I can search through **370+ active listings** across 12 categories to help you find your vehicle.\n\n` +
-        `🚗 **Available Categories:**\n` +
-        `Sedan • SUV • Compact/Hatchback • Truck/Pickup • Minivan • Coupe • Convertible • Electric • Hybrid • Luxury • Sports Car • Off-Road/4x4\n\n` +
-        `💡 **Features you can try:**\n` +
-        `• *"I want to buy a Sedan under $25k"*\n` +
-        `• *"I have a 2019 Civic to trade in"*\n` +
-        `• *"Compare car-001 and car-002"*\n\n` +
-        `What type of vehicle are you looking for today?`,
-      suggestions: [
-        'Buy a Sedan under $25k',
-        'Trade-in my 2019 Civic',
-        'Show Electric cars under $45k',
-        'Show all SUV options',
-      ],
-    };
-  }
-
-  public async processUserMessage(
-    sessionId: string,
-    userText: string,
-    onToken: (token: string) => void,
-    onA2UI: (msgs: any[]) => void,
-    onSuggestions: (chips: string[]) => void
-  ): Promise<SessionState> {
-    const session = this.getOrCreateSession(sessionId);
-    const textLower = userText.toLowerCase().trim();
-
-    // ─── Trade-in Intent Detection ──────────────────────────────────
-    const tradeInMatch = textLower.match(/(?:trade\s*in|trading|trade)\s*(?:my|a)?\s*(\d{4})?\s*([a-z0-9\s-]+)?/i)
-      || textLower.match(/(\d{4})\s+([a-z]+)\s+([a-z0-9]+)\s+(?:to|for)?\s*trade/i);
-
-    if (textLower.includes('trade in') || textLower.includes('trade-in') || (tradeInMatch && (textLower.includes('trade') || textLower.includes('my')))) {
-      const yearMatch = textLower.match(/\b(20\d{2}|19\d{2})\b/);
-      const year = yearMatch ? parseInt(yearMatch[1], 10) : 2019;
-
-      let brand = 'Honda';
-      let model = 'Civic';
-
-      const knownBrands = ['toyota', 'honda', 'ford', 'chevrolet', 'hyundai', 'kia', 'nissan', 'mazda', 'subaru', 'bmw', 'mercedes', 'audi', 'lexus', 'tesla', 'jeep', 'dodge'];
-      for (const b of knownBrands) {
-        if (textLower.includes(b)) {
-          brand = b.charAt(0).toUpperCase() + b.slice(1);
-          break;
-        }
-      }
-
-      const knownModels = ['civic', 'corolla', 'camry', 'accord', 'rav4', 'cr-v', 'f-150', 'mustang', 'elantra', 'tucson', 'altima', 'rogue', 'cx-5', 'forester', 'outback', 'model 3', 'wrangler'];
-      for (const m of knownModels) {
-        if (textLower.includes(m)) {
-          model = m.split(' ').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-          break;
-        }
-      }
-
-      const { estimateTradeIn } = require('./tools');
-      const estValue = estimateTradeIn(year, brand, model);
-      session.tradeIn = {
-        year,
-        brand,
-        model,
-        estimatedValue: estValue,
-        condition: 'good',
-      };
-
-      // Re-trigger showRecommendations if search results exist
-      if (session.recommendations.length > 0) {
-        const { a2uiMessages: recA2UI } = showRecommendations(session, session.recommendations);
-        onA2UI(recA2UI);
-      }
-
-      await this.stream(
-        `💰 **Trade-in Appraised!**\n\n` +
-        `• **Your Vehicle:** ${year} ${brand} ${model}\n` +
-        `• **Estimated Trade-in Value:** **$${estValue.toLocaleString()}**\n\n` +
-        `✨ **Trade-in offset applied!** All vehicle prices on your showroom floor now show the **Net Price after $${estValue.toLocaleString()} trade-in credit**.`,
-        onToken
-      );
-
-      onSuggestions(['Search Sedans under $25k', 'Search SUVs', 'Clear trade-in', 'Show expanded results']);
-      return session;
-    }
-
-    if (textLower.includes('clear trade-in') || textLower.includes('remove trade-in')) {
-      session.tradeIn = null;
-      if (session.recommendations.length > 0) {
-        const { a2uiMessages: recA2UI } = showRecommendations(session, session.recommendations);
-        onA2UI(recA2UI);
-      }
-      await this.stream(`Trade-in valuation removed. All listings are back to standard pricing.`, onToken);
-      onSuggestions(generateSuggestions(session, null, null, session.searchResults.length));
-      return session;
-    }
-
-    // ─── Car selection — extract any car-XXX id from message ────────
-    // Handles: "Select car car-133", "apply for car-133", "car-133", "book car car-133"
-    const carIdMatch = userText.match(/\b(car-\d+)\b/i);
-    const isSelectIntent = carIdMatch && (
-      textLower.includes('select') || textLower.includes('apply') ||
-      textLower.includes('book') || textLower.includes('choose') ||
-      textLower.trim() === carIdMatch[1].toLowerCase()
-    );
-    if (carIdMatch && isSelectIntent) {
-      const carId = carIdMatch[1].toLowerCase();
-      session.selectedListingId = carId;
-      const { a2uiMessages } = startApplication(session, carId);
-      onA2UI(a2uiMessages);
-      await this.stream(`✅ Application Form for **${carId.toUpperCase()}** is now open on your screen. Fill in your details to proceed!`, onToken);
-      onSuggestions(['Submit application', 'Choose a different car', 'Go back to results']);
-      return session;
-    }
-
-    // ─── "Show more" command ─────────────────────────────────────────
-    if (textLower.includes('show more') || textLower.includes('more options') || textLower.includes('more results') || textLower.match(/expand/)) {
-      const { results } = searchListings(session, {
-        intent: session.preferences.intent || 'buy',
-        category: session.preferences.category || undefined,
-        ignorebudget: true,
-      });
-      const expanded = results.slice(0, 12);
-      const recs = expanded.map((car, i) => ({ listingId: car.id, score: 90 - i, reasoning: `${car.color} ${car.year} ${car.brand} ${car.model} — ${car.location}` }));
-      const { a2uiMessages: recA2UI } = showRecommendations(session, recs);
-      onA2UI(recA2UI);
-      await this.stream(`Showing **${expanded.length} expanded results** (budget filter lifted). Check the cards on the right!`, onToken);
-      onSuggestions(generateSuggestions(session, null, null, expanded.length));
-      return session;
-    }
-
-    // ─── 1. Extract intent ───────────────────────────────────────────
-    let extractedIntent: 'buy' | 'rent' | null = null;
-    if (textLower.includes('buy') || textLower.includes('purchase')) extractedIntent = 'buy';
-    else if (textLower.includes('rent') || textLower.includes('lease')) extractedIntent = 'rent';
-
-    // ─── 2. Extract category ─────────────────────────────────────────
-    const catMap: Record<string, string> = {
-      'sports car': 'Sports Car', 'sports': 'Sports Car',
-      'off-road': 'Off-Road/4x4', '4x4': 'Off-Road/4x4',
-      hatchback: 'Compact/Hatchback', compact: 'Compact/Hatchback',
-      sedan: 'Sedan', suv: 'SUV', truck: 'Truck/Pickup', pickup: 'Truck/Pickup',
-      coupe: 'Coupe', convertible: 'Convertible', electric: 'Electric', ev: 'Electric',
-      hybrid: 'Hybrid', luxury: 'Luxury', minivan: 'Minivan', van: 'Minivan',
-    };
-    const catKeys = Object.keys(catMap).sort((a, b) => b.length - a.length);
-    const foundCats = new Set<string>();
-    for (const key of catKeys) {
-      if (textLower.includes(key)) foundCats.add(catMap[key]);
-    }
-    const extractedCategory = foundCats.size > 0 ? Array.from(foundCats) : null;
-
-    // ─── 3. Extract budget ────────────────────────────────────────────
-    let extractedBudget: { min: number; max: number; currency: string } | null = null;
-    const budgetPatterns = [
-      { re: /\$(\d+(?:\.\d+)?)\s*k/i, mult: 1000 },
-      { re: /(\d+(?:\.\d+)?)\s*k\b/i, mult: 1000 },
-      { re: /(\d+)\s*thousand/i, mult: 1000 },
-      { re: /\$(\d{4,6})/i, mult: 1 },
-      { re: /(?:budget|under|max|below|less than)[^\d]*(\d{4,6})/i, mult: 1 },
-    ];
-    for (const { re, mult } of budgetPatterns) {
-      const m = textLower.match(re);
-      if (m?.[1]) {
-        const val = parseFloat(m[1].replace(/,/g, '')) * mult;
-        if (val >= 1000 && val <= 500000) {
-          extractedBudget = { min: 0, max: Math.round(val), currency: 'USD' };
-          break;
-        }
-      }
-    }
-
-    const isBudgetUpdate = extractedBudget !== null;
-    const isCategoryUpdate = extractedCategory !== null;
-
-    // ─── 4. Update preferences ────────────────────────────────────────
-    const { updatedPrefs, a2uiMessages: prefA2UI } = updatePreferences(session, {
-      intent: extractedIntent,
-      useCase: textLower.includes('commute') ? 'daily commuting'
-        : textLower.includes('family') ? 'family trips'
-        : textLower.includes('road trip') ? 'road trips'
-        : textLower.includes('weekend') ? 'weekend drives'
-        : session.preferences.useCase,
-      category: extractedCategory || session.preferences.category,
-      budget: extractedBudget || session.preferences.budget,
-    });
-    onA2UI(prefA2UI);
-
-    const isReadyToSearch =
-      isBudgetUpdate || isCategoryUpdate ||
-      textLower.includes('show') || textLower.includes('find') || textLower.includes('search') ||
-      session.phase === 'recommending' ||
-      (updatedPrefs.intent !== null && (updatedPrefs.category?.length || updatedPrefs.budget !== null));
-
-    // ─── 5. Interview phase ───────────────────────────────────────────
-    if (!isReadyToSearch && session.phase === 'interview') {
-      let response = '';
-      if (!updatedPrefs.intent) {
-        response = `Are you looking to **buy** or **rent** a vehicle?\n\nI have listings across Sedan, SUV, Electric, Hybrid, Luxury, Sports Car, Truck/Pickup, Coupe, Convertible, Minivan, Compact, and Off-Road categories.`;
-      } else if (!updatedPrefs.category?.length) {
-        response = `Great — you want to **${updatedPrefs.intent}**!\n\nWhat category? Choose from:\nSedan • SUV • Electric • Hybrid • Luxury • Sports Car • Truck/Pickup • Coupe • Convertible • Minivan • Compact/Hatchback • Off-Road/4x4`;
-      } else if (!updatedPrefs.budget) {
-        response = `Nice! What's your **maximum budget** for a ${updatedPrefs.category.join('/')}? (e.g. $20k, $35,000, $50k)`;
-      } else {
-        response = `All set — searching for you now...`;
-      }
-      await this.stream(response, onToken);
-      onSuggestions(generateSuggestions(session, null, null, 0));
-      return session;
-    }
-
-    // ─── 6. Search — STRICT budget ────────────────────────────────────
-    const { results, cheapestInCategory, cheapestPrice, totalInCategory } = searchListings(session, {
-      intent: updatedPrefs.intent || 'buy',
-      category: updatedPrefs.category || undefined,
-      maxBudget: updatedPrefs.budget?.max,
-    });
-
-    // ─── 7. Handle zero results honestly ─────────────────────────────
-    if (results.length === 0) {
-      const catLabel = updatedPrefs.category?.join(' / ') || 'this category';
-      const budgetLabel = updatedPrefs.budget?.max ? `$${updatedPrefs.budget.max.toLocaleString()}` : 'your budget';
-      const intent = updatedPrefs.intent || 'buy';
-
-      let noResultsMsg = `😔 I searched all **${totalInCategory} ${catLabel}** listings in our ${intent} inventory but found **none under ${budgetLabel}**.\n\n`;
-
-      if (cheapestPrice !== null && cheapestInCategory) {
-        const suggestedBudget = Math.ceil(cheapestPrice * 1.1 / 1000) * 1000;
-        noResultsMsg +=
-          `💡 **The closest option** starts at **$${cheapestPrice.toLocaleString()}** — a ${cheapestInCategory.year} ${cheapestInCategory.brand} ${cheapestInCategory.model} in ${cheapestInCategory.location}.\n\n` +
-          `Would you like me to:\n` +
-          `• Raise your budget to **$${suggestedBudget.toLocaleString()}** to see ${catLabel} options?\n` +
-          `• Search a **different category** within ${budgetLabel}?\n` +
-          `• Show you the **cheapest ${catLabel}** we have regardless of your budget?`;
-      } else {
-        noResultsMsg += `We may not have ${catLabel} listings in the ${intent} section yet. Try a different category or switch to renting.`;
-      }
-
-      // Clear the showroom floor (no cards to show)
-      onA2UI([]);
-      await this.stream(noResultsMsg, onToken);
-      onSuggestions(generateSuggestions(session, cheapestInCategory, cheapestPrice, 0));
-      return session;
-    }
-
-    // ─── 8. Show results (up to 8) ────────────────────────────────────
-    const shown = results.slice(0, 8);
-    const recs = shown.map((car, idx) => {
-      let score = 99 - idx * 2;
-      const priceStr = updatedPrefs.intent === 'rent'
-        ? `$${car.dailyRate}/day`
-        : `$${car.price?.toLocaleString()}`;
-      const reasoning =
-        `${car.color} ${car.fuelType} ${car.category} with ${car.features.slice(0, 2).join(' & ')}. ` +
-        `${priceStr} · ${car.year} · ${car.condition} · ${car.location}.`;
-      return { listingId: car.id, score, reasoning };
-    });
-
-    const { a2uiMessages: recA2UI } = showRecommendations(session, recs);
-    onA2UI(recA2UI);
-
-    // Build clean summary
-    let prefix = '';
-    if (isBudgetUpdate && updatedPrefs.budget) {
-      prefix = `✅ Budget updated to **$${updatedPrefs.budget.max.toLocaleString()}**. `;
-    }
-    const catLabel = updatedPrefs.category?.join(' / ') || 'all categories';
-    const budgetLabel = updatedPrefs.budget?.max ? `under **$${updatedPrefs.budget.max.toLocaleString()}**` : '';
-    const moreAvailable = results.length > shown.length ? ` (${results.length - shown.length} more available — say *"show more"*)` : '';
-
-    const summaryText =
-      `${prefix}Found **${shown.length} ${catLabel}** listings ${budgetLabel}${moreAvailable}:\n\n` +
-      shown.map((c, idx) => {
-        const priceStr = updatedPrefs.intent === 'rent'
-          ? `$${c.dailyRate}/day rental`
-          : c.price ? `$${c.price.toLocaleString()}` : 'Contact for price';
-        return `${idx + 1}. **${c.year} ${c.brand} ${c.model}** · ${c.color} · ${priceStr}\n   💡 ${recs[idx].reasoning}`;
-      }).join('\n\n') +
-      `\n\n👉 Interactive glass cards are updated on the right. Click **Apply / Book** to proceed.`;
-
-    await this.stream(summaryText, onToken);
-    onSuggestions(generateSuggestions(session, cheapestInCategory, cheapestPrice, shown.length));
-
-    return session;
-  }
-
-  private async stream(text: string, onToken: (t: string) => void): Promise<void> {
-    const words = text.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      onToken(words[i] + (i < words.length - 1 ? ' ' : ''));
-      await new Promise((r) => setTimeout(r, 9));
-    }
-  }
-
-  public handleApplicationSubmit(sessionId: string, formData: Record<string, unknown>) {
-    const session = this.getOrCreateSession(sessionId);
-    session.application = formData;
-    const { a2uiMessages } = startCheckout(session, `APP-${Date.now().toString().slice(-4)}`);
-    return { session, a2uiMessages };
-  }
-
-  public handlePaymentSubmit(sessionId: string, _paymentData: Record<string, unknown>) {
-    const session = this.getOrCreateSession(sessionId);
-    session.paymentStatus = 'confirmed';
-    session.phase = 'done';
-    return { session, a2uiMessages: updateProgress(session, 'done', 'Confirmed!') };
-  }
+export function handlePaymentSubmit(sessionId: string, _paymentData: Record<string, unknown>) {
+  const session = getOrCreateSession(sessionId);
+  session.paymentStatus = 'confirmed';
+  session.phase = 'done';
+  const a2uiMessages = updateProgress(session, 'done', 'Confirmed!');
+  return { session, a2uiMessages };
 }

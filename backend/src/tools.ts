@@ -3,16 +3,88 @@ import path from 'path';
 import { Listing, SessionState } from './types';
 import { buildCatalogueMessages, buildProgressMessages } from './a2ui-templates';
 
+const SHOWROOM_ITEMS: Listing[] = [
+  {
+    id: 'car-etron-gt',
+    brand: 'Audi',
+    model: 'e-tron GT RS',
+    trim: 'RS Quattro Electric',
+    year: 2025,
+    color: 'Slate Grey',
+    category: 'Electric',
+    listingType: 'both',
+    price: 104900,
+    dailyRate: 249,
+    mileage: 1200,
+    condition: 'new',
+    fuelType: 'Electric',
+    seats: 4,
+    location: 'Los Angeles, CA',
+    availabilityDate: '2026-08-10',
+    marketplace: 'Verified Premier Fleet',
+    features: ['Matrix LED Headlights', 'Cyan Underglow Laser Beam', 'Adaptive Air Suspension', 'Bang & Olufsen 3D Sound', 'All-Wheel Steering'],
+    imageUrl: '/images/audi_etron_underglow.png',
+  },
+  {
+    id: 'car-cayenne-gt',
+    brand: 'Porsche',
+    model: 'Cayenne Turbo GT',
+    trim: 'V8 Twin-Turbo',
+    year: 2024,
+    color: 'Matte Black',
+    category: 'SUV',
+    listingType: 'buy',
+    price: 98500,
+    dailyRate: 280,
+    mileage: 4500,
+    condition: 'used',
+    fuelType: 'Gasoline',
+    seats: 5,
+    location: 'Miami, FL',
+    availabilityDate: '2026-08-10',
+    marketplace: 'Luxury Exchange',
+    features: ['Titanium Sport Exhaust', 'Carbon Ceramic Brakes', 'Alcantara Sport Seats', 'Teal Glowing Rim Accents', 'Active Aerodynamic Spoiler'],
+    imageUrl: '/images/porsche_suv_dark.png',
+  },
+  {
+    id: 'car-bmw-i7',
+    brand: 'BMW',
+    model: 'i7 xDrive60',
+    trim: 'Executive Lounge M Sport',
+    year: 2025,
+    color: 'Sapphire Blue',
+    category: 'Luxury',
+    listingType: 'both',
+    price: 119300,
+    dailyRate: 310,
+    mileage: 800,
+    condition: 'new',
+    fuelType: 'Electric',
+    seats: 5,
+    location: 'New York, NY',
+    availabilityDate: '2026-08-10',
+    marketplace: 'Premier Showroom',
+    features: ['31-inch 8K Theater Screen', 'Adaptive Matrix LED Headlights', 'Executive Lounge Seating', 'Bowers & Wilkins Diamond Sound', 'Sky Lounge Panoramic Roof'],
+    imageUrl: '/images/car_headlight_macro.png',
+  },
+];
+
 const datasetPath = path.join(__dirname, '..', '..', 'data', 'listings.json');
 let ALL_LISTINGS: Listing[] = [];
 
 export function reloadDataset(): Listing[] {
   try {
     if (fs.existsSync(datasetPath)) {
-      ALL_LISTINGS = JSON.parse(fs.readFileSync(datasetPath, 'utf8'));
+      const raw = JSON.parse(fs.readFileSync(datasetPath, 'utf8'));
+      const existingIds = new Set(raw.map((item: Listing) => item.id));
+      const newItems = SHOWROOM_ITEMS.filter((item) => !existingIds.has(item.id));
+      ALL_LISTINGS = [...newItems, ...raw];
+    } else {
+      ALL_LISTINGS = SHOWROOM_ITEMS;
     }
   } catch (e) {
     console.error('Error reloading dataset:', e);
+    ALL_LISTINGS = SHOWROOM_ITEMS;
   }
   return ALL_LISTINGS;
 }
@@ -48,12 +120,6 @@ export function updatePreferences(
   };
 }
 
-/**
- * Core search — STRICT budget enforcement.
- * Returns { results, cheapestAvailable } where cheapestAvailable
- * is the min-price car in the category (regardless of budget) 
- * so the agent can give honest "raise budget to $X" suggestions.
- */
 export function searchListings(
   session: SessionState,
   filters: {
@@ -68,21 +134,18 @@ export function searchListings(
   const maxBudget = filters.ignorebudget ? undefined : filters.maxBudget;
   const categories = filters.category;
 
-  // Step 1: filter by intent type
   const intentMatched = ALL_LISTINGS.filter((car) => {
     if (intent === 'buy' && car.listingType === 'rent') return false;
     if (intent === 'rent' && car.listingType === 'buy') return false;
     return true;
   });
 
-  // Step 2: filter by category (if provided)
   const categoryMatched = categories?.length
     ? intentMatched.filter((car) => categories.some((c) => c.toLowerCase() === car.category.toLowerCase()))
     : intentMatched;
 
   const totalInCategory = categoryMatched.length;
 
-  // Find the cheapest option in category (ignore budget) for honest "raise budget to X" suggestion
   const sortedByPrice = [...categoryMatched].sort((a, b) => {
     const pa = intent === 'rent' ? (a.dailyRate ?? 999999) : (a.price ?? 999999);
     const pb = intent === 'rent' ? (b.dailyRate ?? 999999) : (b.price ?? 999999);
@@ -93,17 +156,15 @@ export function searchListings(
     ? (intent === 'rent' ? cheapestInCategory.dailyRate : cheapestInCategory.price)
     : null;
 
-  // Step 3: STRICT budget filter — never show over budget
   let budgetMatched = categoryMatched;
   if (maxBudget !== undefined && maxBudget > 0) {
     budgetMatched = categoryMatched.filter((car) => {
       if (intent === 'rent' && car.dailyRate !== null) return car.dailyRate <= maxBudget;
       if (car.price !== null) return car.price <= maxBudget;
-      return false; // unknown price — skip
+      return false;
     });
   }
 
-  // Sort by price ascending (best value first)
   budgetMatched.sort((a, b) => {
     const pa = intent === 'rent' ? (a.dailyRate ?? 999999) : (a.price ?? 999999);
     const pb = intent === 'rent' ? (b.dailyRate ?? 999999) : (b.price ?? 999999);
