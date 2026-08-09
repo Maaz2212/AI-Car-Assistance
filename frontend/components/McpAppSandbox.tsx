@@ -6,6 +6,8 @@ import { Shield, X } from 'lucide-react';
 interface McpAppSandboxProps {
   phase: 'form' | 'payment';
   selectedListingId?: string | null;
+  selectedCar?: any;
+  appliedFormData?: any;
   sessionId: string;
   onFormSubmitted?: (formData: any) => void;
   onPaymentSubmitted?: (paymentData: any) => void;
@@ -15,12 +17,78 @@ interface McpAppSandboxProps {
 export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
   phase,
   selectedListingId,
+  selectedCar,
+  appliedFormData,
   sessionId,
   onFormSubmitted,
   onPaymentSubmitted,
   onClose,
 }) => {
   const isForm = phase === 'form';
+
+  const carName = selectedCar ? `${selectedCar.year || ''} ${selectedCar.brand || ''} ${selectedCar.model || ''} ${selectedCar.trim || ''}`.trim() : (selectedListingId || 'Vehicle');
+  const carPrice = selectedCar?.netPrice ?? selectedCar?.price ?? null;
+  const dailyRate = selectedCar?.dailyRate ?? null;
+  const pref = appliedFormData?.preference || 'Full Cash Purchase';
+  const applicantName = appliedFormData?.name || 'Alex Morgan';
+
+  let depositAmount = 500;
+  let depositLabel = 'Reservation Deposit';
+  let priceBreakdownHtml = '';
+
+  if (pref === 'Full Cash Purchase') {
+    const total = carPrice || 35000;
+    depositAmount = Math.round(total * 0.05);
+    depositLabel = 'Full Cash Lock Deposit';
+    priceBreakdownHtml = `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Full Vehicle Cash Price:</span>
+        <strong style="color:#F4F3EF;">$${total.toLocaleString()}</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Lock Deposit (5%):</span>
+        <strong style="color:#33D6A6;">$${depositAmount.toLocaleString()}</strong>
+      </div>
+    `;
+  } else if (pref === 'Monthly Lease / Rent') {
+    const rate = dailyRate || 85;
+    const monthlyEst = rate * 25;
+    depositAmount = Math.round(rate * 10);
+    depositLabel = 'Lease First Month & Security Deposit';
+    priceBreakdownHtml = `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Daily Rental Rate:</span>
+        <strong style="color:#F4F3EF;">$${rate}/day</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Est. Monthly Lease:</span>
+        <strong style="color:#F4F3EF;">$${monthlyEst.toLocaleString()}/mo</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Security & First Payment Deposit:</span>
+        <strong style="color:#33D6A6;">$${depositAmount.toLocaleString()}</strong>
+      </div>
+    `;
+  } else {
+    const total = carPrice || 35000;
+    const monthlyLoan = Math.round((total * 0.85) / 60);
+    depositAmount = Math.round(total * 0.10);
+    depositLabel = 'Financing Down Payment Deposit';
+    priceBreakdownHtml = `
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Vehicle Price:</span>
+        <strong style="color:#F4F3EF;">$${total.toLocaleString()}</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Est. Monthly Loan (60 mo):</span>
+        <strong style="color:#F4F3EF;">~$${monthlyLoan.toLocaleString()}/mo</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+        <span>Down Payment Deposit (10%):</span>
+        <strong style="color:#33D6A6;">$${depositAmount.toLocaleString()}</strong>
+      </div>
+    `;
+  }
 
   const formHtml = `
     <!DOCTYPE html>
@@ -125,8 +193,9 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           📝 Rental & Purchase Application
           <span class="badge">Sandboxed MCP App</span>
         </h3>
-        <p style="font-size:13px; color:#9CA3AF; margin-bottom:16px;">
-          Listing Reference: <strong style="color:#F4F3EF;">${selectedListingId || 'CAR-SELECTED'}</strong>
+        <p style="font-size:13px; color:#9CA3AF; margin-bottom:16px; font-family:monospace;">
+          Selected Vehicle: <strong style="color:#FFB020;">${carName}</strong>
+          ${carPrice ? `<span style="color:#33D6A6; margin-left:8px;">($${carPrice.toLocaleString()})</span>` : dailyRate ? `<span style="color:#33D6A6; margin-left:8px;">($${dailyRate}/day)</span>` : ''}
         </p>
         <form id="appForm">
           <label>Full Legal Name</label>
@@ -230,11 +299,20 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           font-family: monospace;
           text-transform: uppercase;
         }
+        .summary-box {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          padding: 12px 16px;
+          margin-bottom: 16px;
+          font-size: 13px;
+          font-family: monospace;
+        }
         label {
           display: block;
-          margin-top: 14px;
+          margin-top: 12px;
           margin-bottom: 4px;
-          font-size: 12px;
+          font-size: 11px;
           color: #9CA3AF;
           font-family: monospace;
           text-transform: uppercase;
@@ -246,8 +324,8 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           border: 1px solid rgba(255, 255, 255, 0.15);
           color: #F4F3EF;
           border-radius: 10px;
-          padding: 10px 14px;
-          font-size: 14px;
+          padding: 9px 12px;
+          font-size: 13px;
           outline: none;
           transition: all 0.2s ease;
         }
@@ -264,7 +342,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           gap: 12px;
         }
         button {
-          margin-top: 20px;
+          margin-top: 16px;
           width: 100%;
           background: #33D6A6;
           color: #000;
@@ -273,7 +351,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           padding: 12px;
           border-radius: 10px;
           cursor: pointer;
-          font-size: 15px;
+          font-size: 14px;
           transition: background 0.2s;
         }
         button:hover {
@@ -284,17 +362,32 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
     <body>
       <div class="card">
         <h3>
-          💳 Mock Checkout Payment
-          <span class="badge">Demo — No real payment</span>
+          💳 Checkout & Booking Confirmation
+          <span class="badge">Verified MCP Payment</span>
         </h3>
-        <p style="font-size:12px; color:#33D6A6; margin-bottom:16px; font-family:monospace;">
-          ✓ Application verified. Complete checkout reservation deposit ($500 deposit).
-        </p>
+        
+        <div class="summary-box">
+          <div style="display:flex; justify-mode:space-between; justify-content:space-between; margin-bottom:6px; color:#FFB020; font-weight:bold;">
+            <span>Vehicle:</span>
+            <span>${carName}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:#9CA3AF;">
+            <span>Applicant:</span>
+            <span>${applicantName}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:#9CA3AF;">
+            <span>Option Chosen:</span>
+            <span style="color:#33D6A6; font-weight:bold;">${pref}</span>
+          </div>
+          <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.15); margin:8px 0;" />
+          ${priceBreakdownHtml}
+        </div>
+
         <form id="payForm">
           <label>Cardholder Name</label>
-          <input type="text" id="cardName" placeholder="e.g. Alex Morgan" />
+          <input type="text" id="cardName" value="${applicantName}" placeholder="e.g. Alex Morgan" />
 
-          <label>Card Number (Mock)</label>
+          <label>Card Number (Demo Mock Card)</label>
           <input type="text" id="cardNumber" placeholder="e.g. 4532 •••• •••• 8892" />
 
           <div class="row">
@@ -308,7 +401,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
             </div>
           </div>
 
-          <button type="submit">Confirm Booking Deposit ($500.00)</button>
+          <button type="submit">Confirm ${depositLabel} ($${depositAmount.toLocaleString()}.00)</button>
         </form>
       </div>
 
@@ -321,11 +414,13 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           const cvc = document.getElementById('cvc').value.trim();
 
           const paymentData = {
-            cardName: cardName || 'Alex Morgan',
+            cardName: cardName || '${applicantName}',
             cardNumber: cardNumber || '4532 8920 1234 8892',
             expiry: expiry || '08/28',
             cvc: cvc || '492',
-            amount: 500.00
+            amount: ${depositAmount},
+            preference: '${pref}',
+            vehicle: '${carName}'
           };
           window.parent.postMessage({ type: 'MCP_APP_SUBMIT', action: 'submit_payment', paymentData }, '*');
         });
@@ -371,7 +466,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
 
       <iframe
         srcDoc={isForm ? formHtml : paymentHtml}
-        className="w-full h-[470px] rounded-xl border-0"
+        className="w-full h-[520px] rounded-xl border-0"
         title="MCP App Sandbox"
       />
     </div>

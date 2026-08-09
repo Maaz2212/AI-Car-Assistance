@@ -28,6 +28,7 @@ export default function ShowroomPage() {
 
   // Detail Modal & Feature States
   const [selectedDetailCar, setSelectedDetailCar] = useState<any | null>(null);
+  const [appliedFormData, setAppliedFormData] = useState<any>(null);
   const [tradeIn, setTradeIn] = useState<any>(null);
   const [comparedCarIds, setComparedCarIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState<boolean>(false);
@@ -215,6 +216,7 @@ export default function ShowroomPage() {
   };
 
   const handleFormSubmit = async (formData: any) => {
+    setAppliedFormData(formData);
     try {
       const res = await fetch('http://localhost:3001/api/application/submit', {
         method: 'POST',
@@ -373,6 +375,8 @@ export default function ShowroomPage() {
               <McpAppSandbox
                 phase={currentStage}
                 selectedListingId={selectedListingId}
+                selectedCar={recommendations.find((c) => c.id === selectedListingId)}
+                appliedFormData={appliedFormData}
                 sessionId={sessionId}
                 onFormSubmitted={handleFormSubmit}
                 onPaymentSubmitted={handlePaymentSubmit}
