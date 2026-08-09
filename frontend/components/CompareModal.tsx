@@ -148,7 +148,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({
 
               {/* Mileage */}
               <div className="grid grid-cols-3 p-3 items-center">
-                <span className="font-mono text-gray-400">Mileage</span>
+                <span className="font-mono text-gray-400">Odometer (Driven)</span>
                 <span className="font-mono text-showroom-ink">{carA.mileage.toLocaleString()} mi</span>
                 <span className="font-mono text-showroom-ink">{carB.mileage.toLocaleString()} mi</span>
               </div>

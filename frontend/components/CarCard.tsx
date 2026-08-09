@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Fuel, MapPin, Gauge, ArrowUpRight } from 'lucide-react';
+import { Fuel, MapPin, Gauge, ArrowUpRight, Eye } from 'lucide-react';
 
 const COLOR_MAP: Record<string, string> = {
   'Midnight Black': '#1a1a1a', 'Pearl White': '#f5f5f0', 'Silver Metallic': '#a8a9ad',
@@ -37,6 +37,7 @@ export interface CarCardProps {
   matchScore: number;
   reasoning: string;
   onSelectCar?: (listingId: string) => void;
+  onViewDetails?: (carProps: any) => void;
   isCompared?: boolean;
   onToggleCompare?: (listingId: string) => void;
 }
@@ -64,9 +65,34 @@ export const CarCard: React.FC<CarCardProps> = ({
   matchScore,
   reasoning,
   onSelectCar,
+  onViewDetails,
   isCompared = false,
   onToggleCompare,
 }) => {
+  const currentCarObject = {
+    id,
+    brand,
+    model,
+    trim,
+    year,
+    color,
+    category,
+    listingType,
+    price,
+    netPrice,
+    tradeInOffset,
+    dailyRate,
+    mileage,
+    fuelType,
+    condition,
+    location,
+    marketplace,
+    imageUrl,
+    features,
+    matchScore,
+    reasoning,
+  };
+
   return (
     <div className="glass-panel glass-panel-hover rounded-2xl overflow-hidden flex flex-col relative group">
       {/* Compare Checkbox Button */}
@@ -172,21 +198,33 @@ export const CarCard: React.FC<CarCardProps> = ({
           </div>
 
           {/* Italic Personalized Reasoning */}
-          <div className="bg-showroom-teal/5 border border-showroom-teal/20 rounded-xl p-3 mb-4">
-            <p className="font-sans italic text-xs text-showroom-teal/90 leading-relaxed">
-              "{reasoning}"
-            </p>
-          </div>
+          {reasoning && (
+            <div className="bg-showroom-teal/5 border border-showroom-teal/20 rounded-xl p-3 mb-4">
+              <p className="font-sans italic text-xs text-showroom-teal/90 leading-relaxed">
+                "{reasoning}"
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={() => onSelectCar?.(id)}
-          className="w-full bg-showroom-amber hover:bg-amber-400 text-black font-heading font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-amber-glow active:scale-[0.98]"
-        >
-          <span>Apply & Rent / Buy</span>
-          <ArrowUpRight className="w-4 h-4" />
-        </button>
+        {/* Dual Action Buttons: Full Specs & Apply */}
+        <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
+          <button
+            onClick={() => onViewDetails?.(currentCarObject)}
+            className="w-full bg-white/10 hover:bg-white/20 text-white font-mono text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 border border-white/15 transition-all active:scale-[0.98]"
+          >
+            <Eye className="w-3.5 h-3.5 text-showroom-teal" />
+            <span>Full Specs</span>
+          </button>
+
+          <button
+            onClick={() => onSelectCar?.(id)}
+            className="w-full bg-showroom-amber hover:bg-amber-400 text-black font-heading font-extrabold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-amber-glow active:scale-[0.98]"
+          >
+            <span>Apply</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
