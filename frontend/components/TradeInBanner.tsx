@@ -81,14 +81,14 @@ export const TradeInBanner: React.FC<TradeInBannerProps> = ({
             type="text"
             value={year}
             onChange={(e) => setYear(e.target.value)}
-            placeholder="Year (e.g. 2019)"
+            placeholder="Year (e.g. 2021)"
             className="w-24 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-showroom-ink font-mono focus:outline-none focus:border-showroom-amber"
           />
           <input
             type="text"
             value={makeModel}
             onChange={(e) => setMakeModel(e.target.value)}
-            placeholder="Make & Model (e.g. Civic)"
+            placeholder="Make & Model (e.g. Honda Civic)"
             className="w-36 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-showroom-ink font-sans focus:outline-none focus:border-showroom-amber"
           />
           <button

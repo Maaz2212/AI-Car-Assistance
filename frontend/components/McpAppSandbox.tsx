@@ -85,9 +85,21 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           color: rgba(244, 243, 239, 0.35);
           font-style: italic;
         }
-        input:focus {
+        input:focus, select:focus {
           border-color: #FFB020;
           background: rgba(255, 255, 255, 0.1);
+        }
+        .phone-group {
+          display: flex;
+          gap: 8px;
+        }
+        .phone-group select {
+          width: 140px;
+          flex-shrink: 0;
+          background: rgba(18, 20, 26, 0.95);
+        }
+        .phone-group input {
+          flex: 1;
         }
         button {
           margin-top: 20px;
@@ -118,13 +130,27 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
         </p>
         <form id="appForm">
           <label>Full Legal Name</label>
-          <input type="text" id="name" placeholder="e.g. Jane Doe" />
+          <input type="text" id="name" placeholder="e.g. Alex Morgan" />
 
           <label>Email Address</label>
-          <input type="email" id="email" placeholder="e.g. jane.doe@example.com" />
+          <input type="email" id="email" placeholder="e.g. alex.morgan@example.com" />
 
-          <label>Phone Number</label>
-          <input type="tel" id="phone" placeholder="e.g. +1 (555) 234-5678" />
+          <label>Phone Number (Select Country Code)</label>
+          <div class="phone-group">
+            <select id="countryCode">
+              <option value="+91">🇮🇳 +91 (IND)</option>
+              <option value="+1" selected>🇺🇸 +1 (USA)</option>
+              <option value="+44">🇬🇧 +44 (UK)</option>
+              <option value="+1">🇨🇦 +1 (CAN)</option>
+              <option value="+61">🇦🇺 +61 (AUS)</option>
+              <option value="+49">🇩🇪 +49 (GER)</option>
+              <option value="+81">🇯🇵 +81 (JPN)</option>
+              <option value="+971">🇦🇪 +971 (UAE)</option>
+              <option value="+65">🇸🇬 +65 (SGP)</option>
+              <option value="+33">🇫🇷 +33 (FRA)</option>
+            </select>
+            <input type="tel" id="phone" placeholder="98765 43210" />
+          </div>
 
           <label>Target Delivery / Pickup Date</label>
           <input type="date" id="targetDate" value="${new Date().toISOString().split('T')[0]}" />
@@ -145,13 +171,16 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           e.preventDefault();
           const nameVal = document.getElementById('name').value.trim();
           const emailVal = document.getElementById('email').value.trim();
+          const countryCodeVal = document.getElementById('countryCode').value;
           const phoneVal = document.getElementById('phone').value.trim();
           const dateVal = document.getElementById('targetDate').value;
 
+          const fullPhone = phoneVal ? (countryCodeVal + ' ' + phoneVal) : (countryCodeVal + ' 98765 43210');
+
           const formData = {
-            name: nameVal || 'Jane Doe',
-            email: emailVal || 'jane.doe@example.com',
-            phone: phoneVal || '+1 (555) 234-5678',
+            name: nameVal || 'Alex Morgan',
+            email: emailVal || 'alex.morgan@example.com',
+            phone: fullPhone,
             targetDate: dateVal || '${new Date().toISOString().split('T')[0]}',
             preference: document.getElementById('preference').value,
             listingId: '${selectedListingId || ''}'
@@ -263,19 +292,19 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
         </p>
         <form id="payForm">
           <label>Cardholder Name</label>
-          <input type="text" id="cardName" placeholder="e.g. Jane Doe" />
+          <input type="text" id="cardName" placeholder="e.g. Alex Morgan" />
 
           <label>Card Number (Mock)</label>
-          <input type="text" id="cardNumber" placeholder="e.g. 4000 1234 5678 9010" />
+          <input type="text" id="cardNumber" placeholder="e.g. 4532 •••• •••• 8892" />
 
           <div class="row">
             <div style="flex:1;">
               <label>Expiry</label>
-              <input type="text" id="expiry" placeholder="MM/YY" />
+              <input type="text" id="expiry" placeholder="e.g. 08/28" />
             </div>
             <div style="flex:1;">
               <label>CVC</label>
-              <input type="text" id="cvc" placeholder="888" />
+              <input type="text" id="cvc" placeholder="492" />
             </div>
           </div>
 
@@ -292,10 +321,10 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           const cvc = document.getElementById('cvc').value.trim();
 
           const paymentData = {
-            cardName: cardName || 'Jane Doe',
-            cardNumber: cardNumber || '4000 1234 5678 9010',
-            expiry: expiry || '12/28',
-            cvc: cvc || '888',
+            cardName: cardName || 'Alex Morgan',
+            cardNumber: cardNumber || '4532 8920 1234 8892',
+            expiry: expiry || '08/28',
+            cvc: cvc || '492',
             amount: 500.00
           };
           window.parent.postMessage({ type: 'MCP_APP_SUBMIT', action: 'submit_payment', paymentData }, '*');
@@ -342,7 +371,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
 
       <iframe
         srcDoc={isForm ? formHtml : paymentHtml}
-        className="w-full h-[460px] rounded-xl border-0"
+        className="w-full h-[470px] rounded-xl border-0"
         title="MCP App Sandbox"
       />
     </div>
