@@ -1,23 +1,24 @@
-# AI Car Assistance & Matchmaker
+# CarMatch — AI Vehicle Concierge
 
-An intelligent, conversational vehicle matchmaker and purchasing assistant built with Next.js, Node.js, and TypeScript. The application guides users through an interactive process to find, compare, and apply for buying or renting vehicles from a dataset of 370+ listings across 12 categories.
-
----
-
-## 🌟 Features
-
-- **Conversational Search & Filtering**: Interview-driven slot filling for vehicle intent (buy vs. rent), body style, budget limits, fuel type, and specific user preferences.
-- **Side-by-Side Compare Mode**: Select any 2 vehicles to open an interactive side-by-side spec comparison overlay highlighting differences, technical specs, and unique feature badges.
-- **Smart Trade-in Valuation**: Conversational and manual trade-in appraisal engine. Detects existing vehicles (e.g. *"I have a 2019 Civic to trade in"*), calculates estimated trade value, and automatically applies **Net Price offsets** across all listings.
-- **Strict Budget & Category Matching**: Enforces budget constraints with fallback recommendations and transparent alternative suggestions when exact matches are unavailable.
-- **Dynamic Catalogue UI**: Interactive vehicle cards featuring specs, colors, match confidence scoring, and personalized recommendation rationale.
-- **Contextual Suggestion Chips**: Dynamic, data-driven quick replies generated after each turn based on search results and inventory state.
-- **Integrated Application & Checkout**: Streamlined inline workflow for vehicle application submission and booking confirmation.
-- **Docker Ready**: Single-command containerized deployment using Docker Compose.
+CarMatch is a modern, AI-powered vehicle matchmaker built with **Next.js 14**, **Node.js**, **TypeScript**, and a multi-step agent powered by **Groq (Llama 3.3 70B)**. It helps users search, compare, appraise trade-ins, and apply for 380+ listings across 12 car categories.
 
 ---
 
-## 🏗️ Architecture
+## ⚡ Quick Start (Docker - 1 Command)
+
+No manual setup required. Clone the repo and open docker app and then go into terminal and type:
+
+```bash
+docker compose up --build
+```
+
+Then open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+> Everything (dataset generation, frontend build, backend WS server, and agent orchestration) runs automatically out of the box.
+
+---
+
+## 🏗️ System Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -29,74 +30,67 @@ An intelligent, conversational vehicle matchmaker and purchasing assistant built
 └────────────────────────────────────┬───────────────────────────────────┘
                                      │
 ┌────────────────────────────────────┴───────────────────────────────────┐
-│ Backend & Agent Orchestrator (Node.js - Port 3001)                     │
-│ - Session state management, trade-in valuation & preference parsing     │
-│ - Multi-step recommendation engine & strict filter pipeline             │
-│ - REST API endpoints for application submission & payment gateway      │
-└────────────────────────────────────────────────────────────────────────┘
+│ Backend Agent Server (Node.js - Port 3001)                             │
+│ - Multi-step Groq/Llama 3.3 agent with tool-calling loop              │
+│ - Session state, trade-in valuation & preference persistence           │
+│ - REST API endpoints for application & payment workflows               │
+└────────────────────────────────────┬───────────────────────────────────┘
+                                     │
+                          ┌──────────┴──────────┐
+                          │  Groq Cloud API      │
+                          │  llama-3.3-70b       │
+                          └─────────────────────┘
 ```
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Alternative Local Setup
 
-- **Frontend**: Next.js 14, React 18, Tailwind CSS, Lucide Icons
-- **Backend**: Node.js, Express, WebSocket (`ws`), TypeScript
-- **Dataset**: Local JSON repository generator (`scripts/generate-listings.ts`)
-- **Containerization**: Docker, Docker Compose
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- (Optional) Docker Desktop
-
----
-
-### Option 1: Docker Compose (Recommended)
-
-Run the full application stack in a single container:
-
-```bash
-docker compose up --build
-```
-
-Access the application at: **[http://localhost:3000](http://localhost:3000)**
-
----
-
-### Option 2: Local Development
+If running locally without Docker:
 
 1. **Install dependencies:**
+   ```bash
+   npm run install:all
+   ```
 
-```bash
-npm run install:all
-```
+2. **Set your Groq API key in `.env`:**
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
 
-2. **Generate the mock dataset:**
+3. **Start backend and frontend:**
+   ```bash
+   # Terminal 1: Backend (Port 3001)
+   npm run dev:backend
 
-```bash
-npm run generate:data
-```
+   # Terminal 2: Frontend (Port 3000)
+   cd frontend && npm run dev
+   ```
 
-3. **Start the application services:**
+---
 
-```bash
-./start.sh
-```
+## 🌟 Key Features
 
-Or start the backend and frontend separately:
+- **Multi-Step AI Agent**: Autonomous function-calling agent using Groq's Llama 3.3 70B model.
+- **Conversational Inventory Search**: Filter 380+ vehicles by intent (buy/rent), category, and budget.
+- **Smart Trade-in Valuation**: Input current vehicle details to calculate estimated trade-in offset and update net prices across all listings.
+- **Interactive Showroom & Detailed Specs**: View high-res cards, detailed telemetry, and apply directly.
+- **Side-by-Side Comparison**: Compare specs and feature badges between any 2 vehicles.
+- **A2UI Dynamic Surfaces**: Real-time progress dials, interactive cards, and contextual suggestion chips streamed over WebSockets.
 
-```bash
-# Terminal 1 (Backend Server - Port 3001)
-npm run start:backend
+---
 
-# Terminal 2 (Frontend App - Port 3000)
-npm run start:frontend
-```
+## 🤖 Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `updatePreferences` | Saves user intent, category, and budget limits |
+| `searchCars` | Queries live vehicle database |
+| `recommendCars` | Pushes ranked cards with AI reasoning to the UI |
+| `estimateTradeIn` | Calculates trade-in appraisal & net pricing |
+| `openApplicationForm` | Opens reservation/booking form |
+| `clearTradeIn` | Resets pricing to standard listing rates |
+| `closeForm` | Returns user to search floor |
 
 ---
 
@@ -104,42 +98,10 @@ npm run start:frontend
 
 ```
 CarAssistance/
-├── backend/
-│   └── src/
-│       ├── agent.ts            # Agent orchestrator, intent & trade-in processing
-│       ├── tools.ts            # Search, filter & trade-in valuation engine
-│       ├── a2ui-templates.ts   # UI component state generators
-│       ├── server.ts           # Express REST & WebSocket server
-│       └── types.ts            # Data models and session state definitions
-├── frontend/
-│   ├── app/                    # Next.js App Router pages & layout
-│   ├── components/             # React UI components (CarCard, ChatThread, CompareModal, TradeInBanner, etc.)
-│   └── public/                 # Static assets
-├── scripts/
-│   └── generate-listings.ts    # Synthetic vehicle dataset generator
-├── data/
-│   └── listings.json           # Active inventory dataset (370+ vehicles)
-├── docker-compose.yml          # Container deployment specification
-├── Dockerfile                  # Multi-stage production container build
-└── start.sh                    # Startup script for concurrent local execution
+├── backend/            # Express, WebSocket server & Groq Llama 3.3 agent
+├── frontend/           # Next.js 14 glassmorphic UI components
+├── data/               # Car listings dataset
+├── scripts/            # Synthetic data generator script
+├── docker-compose.yml  # One-command Docker orchestration
+└── Dockerfile          # Multi-stage build specification
 ```
-
----
-
-## 📡 API & WebSocket Protocols
-
-### WebSocket (`ws://localhost:3001/ws`)
-
-- **Incoming Messages**:
-  - `{ type: 'chat_token', sessionId: string, token: string }`
-- **Outgoing Events**:
-  - `session_state`: Transmits current session state, preferences, and trade-in valuation.
-  - `chat_token`: Streams response text tokens.
-  - `chat_end`: Signals message completion with contextual suggestion chips.
-  - `a2ui_messages`: Transmits UI updates for progress indicators and vehicle cards.
-
-### REST Endpoints
-
-- `POST /api/application/submit` — Handles vehicle application submission.
-- `POST /api/payment/confirm` — Confirms booking deposit and updates order status.
-- `GET /` & `GET /api/health` — Service status check.
