@@ -19,10 +19,13 @@ interface ChatThreadProps {
 
 export const ChatThread: React.FC<ChatThreadProps> = ({ messages, onSendMessage, isStreaming }) => {
   const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll strictly inside the chat container (prevents window viewport jitter & layout shift)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, isStreaming]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,9 +39,6 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, onSendMessage,
     if (isStreaming) return;
     onSendMessage(chip);
   };
-
-  // Find the last agent message with suggestions to render chips
-  const lastAgentMsg = [...messages].reverse().find((m) => m.sender === 'agent');
 
   return (
     <div className="flex flex-col h-full glass-panel rounded-2xl overflow-hidden relative border border-white/10">
@@ -58,8 +58,8 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, onSendMessage,
         </div>
       </div>
 
-      {/* Message List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Message List — strictly contained scrollable area */}
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, msgIndex) => (
           <div key={msg.id}>
             <div className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -120,7 +120,6 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, onSendMessage,
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Box */}
