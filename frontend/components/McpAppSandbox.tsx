@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Shield, Sparkles } from 'lucide-react';
+import { Shield, X } from 'lucide-react';
 
 interface McpAppSandboxProps {
   phase: 'form' | 'payment';
@@ -9,6 +9,7 @@ interface McpAppSandboxProps {
   sessionId: string;
   onFormSubmitted?: (formData: any) => void;
   onPaymentSubmitted?: (paymentData: any) => void;
+  onClose?: () => void;
 }
 
 export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
@@ -17,6 +18,7 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
   sessionId,
   onFormSubmitted,
   onPaymentSubmitted,
+  onClose,
 }) => {
   const isForm = phase === 'form';
 
@@ -77,9 +79,15 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           padding: 10px 14px;
           font-size: 14px;
           outline: none;
+          transition: all 0.2s ease;
+        }
+        input::placeholder {
+          color: rgba(244, 243, 239, 0.35);
+          font-style: italic;
         }
         input:focus {
           border-color: #FFB020;
+          background: rgba(255, 255, 255, 0.1);
         }
         button {
           margin-top: 20px;
@@ -110,16 +118,16 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
         </p>
         <form id="appForm">
           <label>Full Legal Name</label>
-          <input type="text" id="name" value="Jane Doe" required />
+          <input type="text" id="name" placeholder="e.g. Jane Doe" />
 
           <label>Email Address</label>
-          <input type="email" id="email" value="jane.doe@example.com" required />
+          <input type="email" id="email" placeholder="e.g. jane.doe@example.com" />
 
           <label>Phone Number</label>
-          <input type="tel" id="phone" value="+1 (555) 234-5678" required />
+          <input type="tel" id="phone" placeholder="e.g. +1 (555) 234-5678" />
 
           <label>Target Delivery / Pickup Date</label>
-          <input type="date" id="targetDate" value="${new Date().toISOString().split('T')[0]}" required />
+          <input type="date" id="targetDate" value="${new Date().toISOString().split('T')[0]}" />
 
           <label>Financing & Rental Preference</label>
           <select id="preference">
@@ -135,11 +143,16 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
       <script>
         document.getElementById('appForm').addEventListener('submit', function(e) {
           e.preventDefault();
+          const nameVal = document.getElementById('name').value.trim();
+          const emailVal = document.getElementById('email').value.trim();
+          const phoneVal = document.getElementById('phone').value.trim();
+          const dateVal = document.getElementById('targetDate').value;
+
           const formData = {
-            name: document.getElementById('name').value,
-            email: document.getElementById('email').value,
-            phone: document.getElementById('phone').value,
-            targetDate: document.getElementById('targetDate').value,
+            name: nameVal || 'Jane Doe',
+            email: emailVal || 'jane.doe@example.com',
+            phone: phoneVal || '+1 (555) 234-5678',
+            targetDate: dateVal || '${new Date().toISOString().split('T')[0]}',
             preference: document.getElementById('preference').value,
             listingId: '${selectedListingId || ''}'
           };
@@ -207,9 +220,15 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
           padding: 10px 14px;
           font-size: 14px;
           outline: none;
+          transition: all 0.2s ease;
+        }
+        input::placeholder {
+          color: rgba(244, 243, 239, 0.35);
+          font-style: italic;
         }
         input:focus {
           border-color: #33D6A6;
+          background: rgba(255, 255, 255, 0.1);
         }
         .row {
           display: flex;
@@ -244,19 +263,19 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
         </p>
         <form id="payForm">
           <label>Cardholder Name</label>
-          <input type="text" id="cardName" value="Jane Doe" required />
+          <input type="text" id="cardName" placeholder="e.g. Jane Doe" />
 
           <label>Card Number (Mock)</label>
-          <input type="text" id="cardNumber" value="4000 1234 5678 9010" required />
+          <input type="text" id="cardNumber" placeholder="e.g. 4000 1234 5678 9010" />
 
           <div class="row">
             <div style="flex:1;">
               <label>Expiry</label>
-              <input type="text" id="expiry" value="12/28" required />
+              <input type="text" id="expiry" placeholder="MM/YY" />
             </div>
             <div style="flex:1;">
               <label>CVC</label>
-              <input type="text" id="cvc" value="888" required />
+              <input type="text" id="cvc" placeholder="888" />
             </div>
           </div>
 
@@ -267,11 +286,16 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
       <script>
         document.getElementById('payForm').addEventListener('submit', function(e) {
           e.preventDefault();
+          const cardName = document.getElementById('cardName').value.trim();
+          const cardNumber = document.getElementById('cardNumber').value.trim();
+          const expiry = document.getElementById('expiry').value.trim();
+          const cvc = document.getElementById('cvc').value.trim();
+
           const paymentData = {
-            cardName: document.getElementById('cardName').value,
-            cardNumber: document.getElementById('cardNumber').value,
-            expiry: document.getElementById('expiry').value,
-            cvc: document.getElementById('cvc').value,
+            cardName: cardName || 'Jane Doe',
+            cardNumber: cardNumber || '4000 1234 5678 9010',
+            expiry: expiry || '12/28',
+            cvc: cvc || '888',
             amount: 500.00
           };
           window.parent.postMessage({ type: 'MCP_APP_SUBMIT', action: 'submit_payment', paymentData }, '*');
@@ -297,11 +321,25 @@ export const McpAppSandbox: React.FC<McpAppSandboxProps> = ({
   }, [onFormSubmitted, onPaymentSubmitted]);
 
   return (
-    <div className="w-full glass-panel rounded-2xl p-2 border border-showroom-teal/30 mb-6 shadow-teal-glow">
-      <div className="flex items-center gap-2 p-2 font-mono text-xs text-showroom-teal border-b border-white/10 mb-2">
-        <Shield className="w-4 h-4 text-showroom-teal" />
-        <span>SANDBOXED MCP APP CONTAINER (IFRAME SRCDOC)</span>
+    <div id="mcp-form-container" className="w-full glass-panel rounded-2xl p-2 border border-showroom-teal/30 mb-6 shadow-teal-glow relative">
+      <div className="flex items-center justify-between p-2 font-mono text-xs text-showroom-teal border-b border-white/10 mb-2">
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4 text-showroom-teal" />
+          <span>SANDBOXED MCP APP CONTAINER (APPLICATION / CHECKOUT)</span>
+        </div>
+
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1 text-gray-400 hover:text-white bg-white/5 hover:bg-red-500/20 hover:border-red-500/40 border border-white/10 px-2.5 py-1 rounded-lg transition-all"
+            title="Cancel and close form"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Close Form</span>
+          </button>
+        )}
       </div>
+
       <iframe
         srcDoc={isForm ? formHtml : paymentHtml}
         className="w-full h-[460px] rounded-xl border-0"
